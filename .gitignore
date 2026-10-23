@@ -1,0 +1,7 @@
+# SwiftPM / 构建产物
+.build/
+dist/
+*.app
+
+# macOS
+.DS_Store
