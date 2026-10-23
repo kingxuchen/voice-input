@@ -1,5 +1,6 @@
 # SwiftPM / 构建产物
 .build/
+build/
 dist/
 *.app
 

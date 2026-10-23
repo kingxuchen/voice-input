@@ -138,10 +138,17 @@ for bundle in "${BIN_DIR}"/*.bundle; do
     cp -R "${bundle}" "${RESOURCES_DIR}/"
 done
 
-# 应用图标（可选，0007 若提供 Resources/AppIcon.icns 会被打进 bundle）
+# 应用图标：源图存在且比 icns 新时自动重新生成（scripts/make-icon.swift 负责去白边 + macOS squircle 遮罩）
 ICON_KEY=""
-if [[ -f "${PROJECT_ROOT}/Resources/AppIcon.icns" ]]; then
-    cp "${PROJECT_ROOT}/Resources/AppIcon.icns" "${RESOURCES_DIR}/"
+ICON_SRC="${PROJECT_ROOT}/Resources/AppIcon-source.png"
+ICON_ICNS="${PROJECT_ROOT}/Resources/AppIcon.icns"
+if [[ -f "${ICON_SRC}" && ( ! -f "${ICON_ICNS}" || "${ICON_SRC}" -nt "${ICON_ICNS}" ) ]]; then
+    echo "    生成应用图标: scripts/make-icon.swift"
+    swift "${SCRIPT_DIR}/make-icon.swift" "${ICON_SRC}" "${ICON_ICNS}"
+fi
+
+if [[ -f "${ICON_ICNS}" ]]; then
+    cp "${ICON_ICNS}" "${RESOURCES_DIR}/"
     ICON_KEY="
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>"
