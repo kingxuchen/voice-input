@@ -29,6 +29,7 @@ status: open
 
 - [Core Audio 方案核查](0002-coreaudio-api-verification.md)（closed 2026-10-23）：100% 原生 Core Audio HAL C API、零三方依赖（SimplyCoreAudio 2024-03 已归档且不支持 Swift 6 严格并发）；Swift 6 桥接模式 = 顶层 `nonisolated` C 函数指针回调 + `Unmanaged` 传 self + `Task { @MainActor }` 跳板 + `isolated deinit` 注销，Swift 6.4 实测 0 警告 0 错误；CFString 用 `takeRetainedValue()` 防泄漏；仅设默认输入不创建音频流，不触发蓝牙 HFP/SCO 降级（+50ms 防抖）；MenuBarExtra 菜单内容解耦为独立子视图 + `@Observable` 管理器驱动热插拔刷新。报告：research/coreaudio-api-verification.md
 - [SwiftPM 打包 .app](0003-swiftpm-app-bundling.md)（closed 2026-10-23）：纯 bash 脚本用 `swift build -c release --show-bin-path` 动态定位产物组装 `.app`（禁止写死 .build 路径）；`Info.plist` 置 `LSUIElement=true` 由 LaunchServices 直接 `.accessory` 启动、免 Dock 闪烁；ad-hoc 签名 `codesign --force --sign -` 于 .app 根、不用 `--deep`；本机实测 `SMAppService.mainApp.register()` 兼容 ad-hoc（CDHash 变更后仍 .enabled），硬要求 = 正规反域名 CFBundleIdentifier + 固定路径（/Applications 等）安装；权限被关时 `.requiresApproval` 需引导 `openSystemSettingsLoginItems()`。模板：research/swiftpm-app-bundling.md
+- [行为规格定稿](0004-behavior-spec.md)（closed 2026-10-23）：拔出默认设备=如实反映、不做粘性恢复；同名设备追加序号、永不露 UID；切换失败=静默、勾选对齐真实默认；App 名 VoiceInput（`com.fanbingbing.voiceinput`），图标 SF Symbol `mic` + tooltip"输入音源"，底部固定项=打开声音设置…／登录时启动／退出 VoiceInput；点击设备即收起菜单；列表顺序=HAL 返回顺序（系统设置「声音›输入」观感），不按字母排。
 
 ## Not yet specified
 
