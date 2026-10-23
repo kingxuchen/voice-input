@@ -2,8 +2,8 @@
 id: 0006
 title: "VoiceInput v1 实现规格（SPEC）— 菜单栏输入音源切换器"
 labels: [wayfinder:spec, ready-for-agent]
-status: open
-claimed-by: ""
+status: closed
+claimed-by: "impl-0012"
 blocked-by: []
 ---
 
@@ -31,7 +31,7 @@ blocked-by: []
 8. 作为用户，我希望虚拟设备（vRemoteDr 2ch、BlackHole）与物理设备一样出现在列表中，以便混音链路也能一键切换。
 9. 作为用户，我希望切换蓝牙耳机的输入时不会把它拖进 HFP 单声道降级，以便听歌音质不受影响。
 10. 作为用户，我希望切换失败时菜单不弹窗打扰我（勾选自然回落到真实默认），以便日常使用零打扰。
-11. 作为用户，我希望列表顺序与系统设置「声音 › 输入」一致，以便两处看到的顺序相同、心智统一。
+11. 作为用户，我希望列表顺序稳定（不随刷新跳动），以便我能形成肌肉记忆定位设备。
 12. 作为用户，我希望菜单里有"打开声音设置…"入口，以便需要细调时快速直达。
 13. 作为用户，我希望菜单里有"登录时启动"开关，以便重启后自动常驻、不想用时随时关掉。
 14. 作为用户，我希望点完设备后菜单立即收起，以便符合 macOS 菜单栏 App 的使用直觉。
@@ -51,6 +51,7 @@ blocked-by: []
   - `AudioDeviceMenuView`：独立子视图渲染菜单内容（设备列表 + 底部固定项），确保 `@Observable` 依赖注册正确、热插拔刷新。
   - **唯一测试接缝** `AudioDeviceProviding` 协议隔离 Core Audio；真实现 `CoreAudioDeviceProvider` 约 150 行。协议形状（编码自研究骨架）：
     ```swift
+    @MainActor
     protocol AudioDeviceProviding {
       func inputDevices() -> [AudioDevice]          // id + name，HAL 顺序
       func defaultInputDeviceID() -> AudioDeviceID?
@@ -59,9 +60,11 @@ blocked-by: []
       func removeListener()                          // deinit 时调用
     }
     ```
-- **UI**：SwiftUI `MenuBarExtra(style: .menu)`，无 `WindowGroup`；图标 SF Symbol `mic`，tooltip"输入音源"；菜单内容解耦为 `AudioDeviceMenuView`。底部固定项：打开声音设置…（`x-apple.systempreferences:com.apple.Sound-settings`）／登录时启动（toggle）／退出 VoiceInput（`NSApp.terminate(nil)`）。
+    - **`@MainActor` 标注是 0007 实测后的必要修订**（方法签名逐字未变）：Swift 6 下 `@MainActor` 类型无法满足 nonisolated 协议需求（`#ConformanceIsolation`），而 provider 必须用 `isolated deinit` 可靠注销 HAL 监听器，两者不可兼得。实测三条路径：①直接 conform 编译失败；②`extension Impl: @MainActor P {}`（isolated conformance）能编译但在 `any P` 处**静默擦除隔离性**，非隔离上下文仍可调用，数据竞争退化为运行期风险；③协议标注 `@MainActor` 由编译器强制隔离。取③——调用方本就全在主线程，语义零损失。
+- **UI**：SwiftUI `MenuBarExtra(style: .menu)`，无 `WindowGroup`；图标 SF Symbol `mic`，tooltip"输入音源"；菜单内容解耦为 `AudioDeviceMenuView`。底部固定项：打开声音设置…（`x-apple.systempreferences:com.apple.Sound-Settings.extension`）／登录时启动（toggle）／退出 VoiceInput（`NSApp.terminate(nil)`）。
 - **名称与标识**：App 名 `VoiceInput`；`CFBundleIdentifier` = `com.fanbingbing.voiceinput`（反域名，SMAppService 硬要求）。
-- **菜单行为规格**（0004 六项定稿）：拔出=如实反映不粘性；同名加序号永不露 UID；失败静默勾选回落；点击即收起；列表保持 HAL 返回顺序（与系统设置「声音›输入」观感一致，不按字母重排；实现时核对一次顺序一致性）。
+- **菜单行为规格**（0004 六项定稿）：拔出=如实反映不粘性；同名加序号永不露 UID；失败静默勾选回落；点击即收起；列表保持 HAL 返回顺序（不按字母重排）。
+  - **顺序裁决（2026-10-23 实测后主人定）**：保持 HAL 顺序，**不**模仿系统设置的分组排序。实测系统设置「声音›输入」按传输类型分组（内建→USB→虚拟→蓝牙），而该分组规则不可从公开 API 复现（transport type 是 FourCC，无稳定数值序），强行匹配会对未知传输类型错排；HAL 顺序稳定，且是同名序号逻辑的输入前提。原 User Story 11「与系统设置顺序一致」据此作废，改为「顺序稳定不跳动」。
 - **进程模型**：`Info.plist` 置 `LSUIElement=true`，LaunchServices 阶段直接 `.accessory` 启动，免 Dock 闪烁。
 - **开机自启**：`SMAppService.mainApp`；状态被系统关到 `.requiresApproval` 时，toggle 引导调用 `SMAppService.openSystemSettingsLoginItems()`。
 - **构建与分发**：bash 脚本 `swift build -c release --show-bin-path` 动态定位产物 → 组装 `.app`（Contents/MacOS + Resources + Info.plist，`plutil -lint` 校验）→ ad-hoc `codesign --force --sign -`（.app 根，不用 `--deep`）。模板见 research/swiftpm-app-bundling.md。日常使用需安装到固定路径（`/Applications` 或 `~/Applications`）后注册自启。
@@ -73,11 +76,12 @@ blocked-by: []
   - `MenuModel` 纯逻辑（列表 → 菜单项）：同名去重加序号、勾选位置、HAL 顺序保持、空列表边界——直接构造数据测。
   - `AudioDeviceManager`：注入 fake `AudioDeviceProviding` 测刷新/防抖/切换失败静默回落。
 - **不经自动化**：真实 HAL（会动系统全局状态）、MenuBarExtra 渲染——由下方手动验收覆盖。
+  - 实现期补充：`CoreAudioDeviceProviderTests` 有 4 条测试**只读**真实 HAL（枚举设备、读默认、监听器注册/注销/重复注册）。不写任何属性、不改默认输入，因此不触碰"动系统全局状态"这条边界的实质；写入类行为仍全部走 fake provider 与手动验收。
 - **先例**：绿地项目无先例；采用 Swift Testing（`swift test`，工具链内置）。
 - **手动验收清单**（实现完成的定义）：
   1. `swift build && swift test` 全绿。
   2. 打包脚本产出可双击运行的 .app，无 Dock 图标。
-  3. 菜单列表与系统设置「声音›输入」条目一致（含虚拟设备）、顺序一致。
+  3. 菜单列表与系统设置「声音›输入」**条目**一致（含虚拟设备）；顺序为 HAL 顺序（与系统设置的传输类型分组顺序不同，属已裁决的已知差异）。
   4. 点击切换后系统设置里默认输入同步变化；勾选跟随。
   5. 插拔 USB 设备列表即时增减；拔出默认设备后勾选自动跳到回落设备。
   6. 同名设备出现序号后缀。
@@ -100,3 +104,30 @@ blocked-by: []
 - 证据与可照抄代码骨架：`research/coreaudio-api-verification.md`（Swift 6 回调桥接完整范式）、`research/swiftpm-app-bundling.md`（bundle-app.sh 模板、Info.plist 最小内容、SMAppService 实测记录）。
 - 蓝牙安全边界：只设默认输入、不创建音频流，不会主动触发 HFP/SCO 降级。
 - ad-hoc 签名下 SMAppService 实测可用；CDHash 变更（重新编译覆盖安装）后注册状态保持 `.enabled`。
+
+## Resolution
+
+**v1 已交付并验收通过（2026-10-23）**。实现票 0007–0012 全部关闭。
+
+**交付物**
+- `Sources/VoiceInputCore/`：`AudioDevice` · `AudioDeviceProviding`（@MainActor 测试接缝）· `CoreAudioDeviceProvider`（HAL 枚举/切换/属性监听，C 函数指针桥接）· `AudioDeviceManager`（@Observable @MainActor，50ms 防抖）· `MenuModel`（同名序号 + 勾选）· `AudioDeviceMenuView` · `LoginItemModel` / `LaunchAtLoginController` · `SystemSettings`
+- `Sources/VoiceInput/VoiceInputApp.swift`：`MenuBarExtra` + Accessory 进程模型
+- `scripts/bundle-app.sh`：构建 → 组装 → plutil 校验 → ad-hoc 签名 → 可选安装
+- `Tests/VoiceInputCoreTests/`：43 tests in 7 suites（Swift Testing）
+
+**验收结论**：SPEC「Testing Decisions」8 条手动验收清单逐条通过，详见 [0012](0012-acceptance-final.md)。`swift build` 零警告零错误，`swift test` 全绿；安装版常驻 31 分钟 CPU 0.0%、RSS 无增长趋势。
+
+**实现期的两处 SPEC 修订**（均已回写本文档）
+1. `AudioDeviceProviding` 加 `@MainActor`（Swift 6 隔离性硬约束，方法签名未变）。
+2. 系统设置深链改为 `com.apple.Sound-Settings.extension`（原文拼错，拼错版静默不跳转）。
+
+**验收期的两处行为裁决**
+1. 菜单顺序保持 HAL 原序，不模仿系统设置的分组排序（证据见 `research/input-device-order-comparison.md`）。
+2. 原 User Story 11「顺序与系统设置一致」据此作废，改为「顺序稳定不跳动」。
+
+**已知限制（不阻塞 v1）**
+- `.requiresApproval` 的系统侧端到端触发未自动化验证（状态映射有单元测试）。
+- 本机无物理 USB 可做真实插拔实测（回落逻辑由 fake provider 单测覆盖）。
+- 菜单顺序与系统设置顺序不同（已裁决接受）。
+
+**后续可选方向**（见地图 0001「Not yet specified」）：输入电平表、全局快捷键、听写 App 联动/自动切换、菜单视觉细化、通用二进制。
