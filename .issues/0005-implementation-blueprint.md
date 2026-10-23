@@ -3,7 +3,7 @@ id: 0005
 title: "实现蓝图定稿（SPEC.md）"
 labels: [wayfinder:grilling]
 status: open
-claimed-by: ""
+claimed-by: "mainline-session"
 blocked-by: []
 ---
 
