@@ -4,7 +4,7 @@ title: "行为规格定稿：菜单交互与边界行为"
 labels: [wayfinder:grilling]
 status: open
 claimed-by: ""
-blocked-by: [0002]
+blocked-by: []
 ---
 
 ## Question
