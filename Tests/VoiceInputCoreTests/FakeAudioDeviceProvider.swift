@@ -8,6 +8,8 @@ final class FakeAudioDeviceProvider: AudioDeviceProviding {
     var devices: [AudioDevice] = []
     var defaultID: AudioDeviceID?
     var setDefaultStatus: OSStatus = noErr
+    /// 模拟「写入成功但随后读不回默认设备」：默认输入读取返回 nil。
+    var clearDefaultAfterWrite = false
     private(set) var setDefaultCalls: [AudioDeviceID] = []
     private(set) var deviceReadCount = 0
     private var handler: (() -> Void)?
@@ -21,7 +23,7 @@ final class FakeAudioDeviceProvider: AudioDeviceProviding {
 
     func setDefaultInputDevice(id: AudioDeviceID) -> OSStatus {
         setDefaultCalls.append(id)
-        if setDefaultStatus == noErr { defaultID = id }
+        if setDefaultStatus == noErr { defaultID = clearDefaultAfterWrite ? nil : id }
         return setDefaultStatus
     }
 

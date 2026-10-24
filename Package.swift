@@ -7,10 +7,12 @@ let package = Package(
     products: [
         .library(name: "VoiceInputCore", targets: ["VoiceInputCore"]),
         .executable(name: "VoiceInput", targets: ["VoiceInput"]),
+        .executable(name: "voiceinput-cli", targets: ["VoiceInputCLI"]),
     ],
     targets: [
         .target(name: "VoiceInputCore"),
         .executableTarget(name: "VoiceInput", dependencies: ["VoiceInputCore"]),
+        .executableTarget(name: "VoiceInputCLI", dependencies: ["VoiceInputCore"]),
         .testTarget(name: "VoiceInputCoreTests", dependencies: ["VoiceInputCore"]),
     ],
     swiftLanguageModes: [.v6]

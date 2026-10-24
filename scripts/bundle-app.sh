@@ -118,6 +118,15 @@ if [[ ! -f "${SRC_BIN}" ]]; then
     exit 1
 fi
 
+HELPER_NAME="voiceinput-cli"
+SRC_HELPER="${BIN_DIR}/${HELPER_NAME}"
+if [[ ! -f "${SRC_HELPER}" ]]; then
+    echo "错误: 未找到 helper 可执行文件 '${SRC_HELPER}'。" >&2
+    echo "      SwiftPM 的 executable product 名必须是 ${HELPER_NAME}。当前目录内的候选项：" >&2
+    find "${BIN_DIR}" -maxdepth 1 -type f -perm -111 ! -name "*.dylib" -print | sed 's/^/      /' >&2
+    exit 1
+fi
+
 # --- 4. 组装标准 .app bundle 目录 -------------------------------------------
 echo "==> [3/5] 组装 .app Bundle 目录结构 ..."
 # 幂等：先删掉旧产物再重建，避免残留上一次的旧文件
@@ -126,6 +135,11 @@ mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 
 cp "${SRC_BIN}" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
+
+# helper：Raycast / 终端调用的机器接口（契约见 .issues/0017-cli-contract.md）。
+# 与 App 同包分发，路径固定，避免出现「App 更新了 CLI 没更新」的分叉。
+cp "${SRC_HELPER}" "${MACOS_DIR}/${HELPER_NAME}"
+chmod +x "${MACOS_DIR}/${HELPER_NAME}"
 
 # PkgInfo：传统应用类型声明（APPL????），现代 macOS 可读但仍是标准结构的一部分
 printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"
@@ -195,14 +209,17 @@ plutil -lint "${CONTENTS_DIR}/Info.plist"
 
 # --- 5. ad-hoc 签名 ----------------------------------------------------------
 echo "==> [5/5] ad-hoc 代码签名 ..."
-# 只对 .app 根签名，不加 --deep：本项目是单二进制 bundle，inside-out 签名即可；
-# --deep 会用外层参数重签嵌套构件，破坏其自带 entitlements / designated requirement（P-03）
+# inside-out：先签嵌套的 helper，再签 .app 根。顺序反了会让外层封印的哈希对不上内层文件。
+# 不加 --deep：它会用外层参数重签嵌套构件，破坏其自带 entitlements / designated requirement（P-03）
+codesign --force --sign - --timestamp=none "${MACOS_DIR}/${HELPER_NAME}"
 codesign --force --sign - --timestamp=none "${APP_DIR}"
+codesign --verify --strict --verbose=2 "${MACOS_DIR}/${HELPER_NAME}"
 codesign --verify --strict --verbose=2 "${APP_DIR}"
 
 echo ""
 echo "==> 打包完成: ${APP_DIR}"
 echo "    Bundle ID   : ${BUNDLE_ID}"
+echo "    helper      : Contents/MacOS/${HELPER_NAME}（Raycast 调用的机器接口）"
 echo "    LSUIElement : true（不占 Dock，无主窗口）"
 echo "    最低系统    : ${MIN_MACOS}"
 
