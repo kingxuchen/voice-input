@@ -1,0 +1,54 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "voice-input-switcher",
+  "title": "VoiceInput Audio Switcher",
+  "description": "List macOS audio input devices and switch the system default in real time via the VoiceInput menubar app.",
+  "icon": "icon.png",
+  "author": "kingxuchen",
+  "categories": [
+    "System",
+    "Productivity"
+  ],
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "commands": [
+    {
+      "name": "switch-input",
+      "title": "Switch Audio Input",
+      "subtitle": "VoiceInput",
+      "description": "List macOS audio input devices and switch the system default in real time.",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "cliPath",
+      "title": "CLI Path",
+      "description": "Optional. Leave empty to auto-detect /Applications and ~/Applications.",
+      "type": "textfield",
+      "required": false,
+      "placeholder": "/Applications/VoiceInput.app/Contents/MacOS/voiceinput-cli"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.9.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.19.17",
+    "@types/react": "^19.0.10",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "scripts": {
+    "build": "ray build -e dist",
+    "dev": "ray develop",
+    "lint": "ray lint",
+    "fix-lint": "ray lint --fix",
+    "test": "vitest run"
+  }
+}

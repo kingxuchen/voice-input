@@ -6,3 +6,8 @@ dist/
 
 # macOS
 .DS_Store
+
+# Raycast 扩展
+raycast/node_modules/
+raycast/dist/
+raycast/raycast-env.d.ts
