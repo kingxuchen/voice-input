@@ -2,7 +2,7 @@
 id: "0025"
 title: "首发分发包：安装脚本 + Release 产物"
 labels: [ready-for-agent]
-status: open
+status: closed
 claimed-by: "impl-0025"
 blocked-by: ["0024"]
 ---
@@ -53,3 +53,28 @@ blocked-by: ["0024"]
 4. 发布后用 `VERSION=v1.0.0 bash scripts/install.sh`（不带 `BASE_URL`）跑一次真实下载自检。
 
 产物已在 `dist/`（zip 1.4 MB + sha256），执行上面三条命令即可发版。
+
+## Resolution
+
+（closed 2026-10-24）主仓已 public，`v1.0.0` 已发布，安装链路用**真实公网地址**跑通。
+
+**发布结果**
+
+- tag `v1.0.0` → `github.com/kingxuchen/voice-input/releases/tag/v1.0.0`
+- 资产：`VoiceInput-1.0.0.zip`（1,407,080 B）+ `.zip.sha256`（87 B）
+- `raw.githubusercontent.com/kingxuchen/voice-input/main/scripts/install.sh` 返回 200
+
+**真机验证（临时 HOME，模拟干净机器，全部走公网）**
+
+| 场景 | 结果 |
+|---|---|
+| `VERSION=v1.0.0 bash install.sh` | ✅ 下载 → 校验 → 原子安装 → helper `version` 返回 1.0.0 |
+| 不带 `VERSION`（自动取最新） | ✅ 解析到 v1.0.0 并安装成功 |
+| 安装产物隔离属性 | ✅ 无 `com.apple.quarantine`（Gatekeeper 不拦） |
+| 校验和损坏 / 版本不存在 / 查不到最新版 | ✅ 各自非零退出 + 可读原因 |
+
+**发布过程中发现并修掉的一个真问题**：原实现用 `api.github.com/releases/latest` 解析版本，未认证限流 **60 次/小时/IP**，且发版后立刻查询会短暂 404（我第一次自检就撞上了）。改成走 `github.com/<repo>/releases/latest` 的 HTML 重定向取 tag——无限流、无竞态。
+
+**发布流程文档**：`docs/RELEASING.md`（改版本 → 本地门禁 → `release.sh` → tag/release → 发布后自检 → 扩展侧）。
+
+**遗留（不在本票范围）**：Homebrew tap 见 0029。

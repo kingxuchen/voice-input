@@ -40,11 +40,13 @@ if [[ -n "${VERSION:-}" ]]; then
     TAG="${VERSION}"
 else
     echo "==> 查询最新版本 ..."
-    API_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" || true)"
-    TAG="$(printf '%s' "${API_JSON}" \
-        | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' \
-        | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
-    [[ -n "${TAG}" ]] || fail "查不到最新版本（可显式指定 VERSION=v1.0.0，或检查网络）"
+    # 走 releases/latest 的 HTML 重定向取 tag，而不是 api.github.com：
+    # 未认证 API 限流 60 次/小时/IP，用户一多就会集体失败；重定向没有这个限制。
+    TAG="$(curl -fsSIL -o /dev/null -w '%{url_effective}' \
+        "https://github.com/${REPO}/releases/latest" 2>/dev/null \
+        | sed 's#.*/tag/##' || true)"
+    [[ -n "${TAG}" && "${TAG}" != *"/releases/latest" ]] \
+        || fail "查不到最新版本（可显式指定 VERSION=v1.0.0，或检查网络）"
 fi
 
 VERSION_NUMBER="${TAG#v}"
