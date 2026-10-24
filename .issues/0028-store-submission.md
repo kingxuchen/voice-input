@@ -41,10 +41,15 @@ blocked-by: ["0025", "0027"]
 - `README.md` 双语 + 前置条件与两条安装命令；`CHANGELOG.md` 初版含 `{PR_MERGE_DATE}`。
 - `ray lint` 除 `author` 外全绿（ESLint / Prettier / manifest 其余字段 / 图标 / metadata 校验均通过）。
 
-**未完成（两处需要你的账号或人工操作）**：
-1. `package.json` 的 `author` 必须填**你的真实 Raycast 账号名**——`kingxuchen` 在 raycast.com 返回 404，这是 `ray lint` 唯一未过项。我不知道你的 Raycast 用户名，不能猜。
-2. 还差 2 张截图（缺 CLI 安装空态、切换后的 HUD）。自动化抓 Raycast 主窗口不稳定（窗口常在其他 Space，抓出来是空白），建议发布前在界面里手动截：打开命令 → `⇧⌘4` 空格选窗口。
-3. 提交 `npx ray publish`（会向公共 `raycast/extensions` 提 PR，属对外可见动作，需你确认后执行）。
+**已完成（2026-10-24）**
+1. **`author` 已修正为 `xuchen`**（`npx ray profile` 读到的真实账号：金叙辰 / xuchen / jxc1991@gmail.com）。`ray lint` 现已**全绿**（manifest / lockfile / 图标 / metadata / ESLint / Prettier 全通过）。
+2. 截图 2/3：`01-device-list.png`（设备列表含「当前」）、`02-install-empty-state.png`（未安装 VoiceInput 空态），均为窗口截图、2000×1250。
+
+**未完成（1 张截图 + 发布动作）**
+- 第 3 张截图（切换后的 HUD）：HUD 是短暂浮层，自动化抓取会连桌面其他窗口一起抓进来（我尝试时抓到了你的浏览器内容，已把那些全屏截图全部删除，没有留档也不会进仓库）。请手动截：
+  1. 打开命令 → 回车切换 → 立刻 `⇧⌘4` 按空格点窗口；
+  2. `sips -z 1250 2000 <截图>.png` 后放到 `raycast/metadata/03-switched-hud.png`。
+- `npx ray publish`（提交到公共 `raycast/extensions` 的 PR）需要你在最后再确认一次。
 
 ### 更新（2026-10-24，0025 已关）
 

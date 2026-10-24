@@ -4,7 +4,7 @@
   "title": "VoiceInput Audio Switcher",
   "description": "List macOS audio input devices and switch the system default in real time via the VoiceInput menubar app.",
   "icon": "icon.png",
-  "author": "kingxuchen",
+  "author": "xuchen",
   "categories": [
     "System",
     "Productivity"
