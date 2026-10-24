@@ -16,6 +16,8 @@ export type Strings = {
   pluginOutdated: string;
   updateExtension: string;
   current: string;
+  noMatches: string;
+  clearSearch: string;
   switchToThisInput: string;
   refresh: string;
   copyDeviceName: string;
@@ -40,6 +42,8 @@ const en: Strings = {
   pluginOutdated: "This extension is out of date",
   updateExtension: "Update Extension",
   current: "Current",
+  noMatches: "No matching devices",
+  clearSearch: "Clear Search",
   switchToThisInput: "Switch to This Input",
   refresh: "Refresh",
   copyDeviceName: "Copy Device Name",
@@ -63,6 +67,8 @@ const zh: Strings = {
   pluginOutdated: "插件版本过旧",
   updateExtension: "更新扩展",
   current: "当前",
+  noMatches: "没有匹配的设备",
+  clearSearch: "清空搜索",
   switchToThisInput: "切换到此音源",
   refresh: "刷新",
   copyDeviceName: "复制设备名称",

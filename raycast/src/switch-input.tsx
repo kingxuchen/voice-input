@@ -21,6 +21,7 @@ import {
   VOICEINPUT_APP_PATH,
 } from "./lib/constants";
 import { switchFeedback } from "./lib/feedback";
+import { filterDevices } from "./lib/filter";
 import { stringsFor, type Strings } from "./lib/i18n";
 import type { AudioDevice, CliResult, DeviceListResponse } from "./lib/types";
 
@@ -53,8 +54,6 @@ export default function SwitchInput() {
   const t = stringsFor(locale);
   const cliPath = preferenceCliPath();
   const [state, setState] = useState<State>({ kind: "loading" });
-  // Raycast 会把根搜索的查询词注入到命令的搜索框里（真机实证：用 "switch audio" 进命令后
-  // 搜索框带着该词、列表被过滤成 No Results）。这里受控接管，并在挂载后清一次继承词。
   // Raycast 会把根搜索的查询词带进命令的搜索框（真机实证：输入 "switch audio" 回车进入后，
   // 该查询词会经 onSearchTextChange 推给命令，把设备列表过滤成 No Results）。
   // 受控空串盖不住它，因此丢弃挂载瞬间那一次推送；之后的输入都是用户真实输入。
@@ -79,7 +78,10 @@ export default function SwitchInput() {
 
   // 加载中不渲染空态：否则真实数据回来前会闪一次 EmptyView。
   const isLoading = state.kind === "loading";
-  const devices = state.kind === "ready" ? state.devices : [];
+  const allDevices = state.kind === "ready" ? state.devices : [];
+  // `onSearchTextChange` 一存在，Raycast 的 `filtering` 默认就是 false；
+  // 内建过滤又会被根搜索带进来的查询词污染，所以过滤由自己接管（见 lib/filter.ts）。
+  const devices = filterDevices(allDevices, searchText);
 
   return (
     <List
@@ -87,11 +89,13 @@ export default function SwitchInput() {
       searchBarPlaceholder={t.switchToThisInput}
       searchText={searchText}
       onSearchTextChange={handleSearchTextChange}
+      filtering={false}
     >
       {!isLoading && state.kind !== "ready" && (
         <ErrorView state={state} t={t} onRetry={load} cliPath={cliPath} />
       )}
-      {!isLoading && state.kind === "ready" && devices.length === 0 && (
+      {/* 真的没有设备（HAL 枚举不出输入流） */}
+      {!isLoading && state.kind === "ready" && allDevices.length === 0 && (
         <List.EmptyView
           icon={Icon.Microphone}
           title={t.cannotReadDevices}
@@ -106,6 +110,31 @@ export default function SwitchInput() {
           }
         />
       )}
+      {/* 有设备但搜不到：给清空搜索的出口，别让人以为设备消失了 */}
+      {!isLoading &&
+        state.kind === "ready" &&
+        allDevices.length > 0 &&
+        devices.length === 0 && (
+          <List.EmptyView
+            icon={Icon.MagnifyingGlass}
+            title={t.noMatches}
+            description={searchText}
+            actions={
+              <ActionPanel>
+                <Action
+                  title={t.clearSearch}
+                  icon={Icon.XMarkCircle}
+                  onAction={() => setSearchText("")}
+                />
+                <Action
+                  title={t.retry}
+                  icon={Icon.ArrowClockwise}
+                  onAction={load}
+                />
+              </ActionPanel>
+            }
+          />
+        )}
       {devices.map((device) => (
         <List.Item
           key={device.id}

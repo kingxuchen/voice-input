@@ -135,6 +135,8 @@ raycast/
 
 **列表项**：主标题 `displayName`；默认项 `accessories: [{ tag: 当前/Current, icon: Icon.CheckCircle }]`；统一 `Icon.Microphone`；不显示 id/UID；不排序（HAL 原序）。
 
+**搜索（2026-10-24 追加）**：过滤由插件自己做，不用 Raycast 内建过滤。原因：一旦传 `onSearchTextChange`，`List.filtering` 默认就是 `false`（输入不进过滤，界面纹丝不动）；而打开内建过滤又会被根搜索带进来的查询词污染。规则：大小写不敏感的子串匹配 `name` 或 `displayName`；空查询返回全量并保持 HAL 原序；无匹配时给独立空态「没有匹配的设备 / No matching devices」+「清空搜索」动作，与「真的没有设备」区分开。
+
 **动作**：`↵` 切换 · `⌘R` 刷新 · `⌘C` 复制设备名 · `⌘⇧O` 打开声音设置（`x-apple.systempreferences:com.apple.Sound-Settings.extension`） · `⌘⇧V` 打开 VoiceInput。
 
 **切换反馈**：成功 → `showHUD(已切换到 {name})`。**实测 `showHUD` 会自动关闭主窗口**（261–329 ms），不要再调 `closeMainWindow()`。
