@@ -72,15 +72,28 @@ function parseDeviceList(stdout: string): CliResult<DeviceListResponse> {
   try {
     parsed = JSON.parse(stdout);
   } catch {
-    return { kind: "outdated", detail: "response is not valid JSON" };
+    return {
+      kind: "outdated",
+      direction: "app",
+      detail: "response is not valid JSON",
+    };
   }
   if (!parsed || typeof parsed !== "object") {
-    return { kind: "outdated", detail: "response is not an object" };
+    return {
+      kind: "outdated",
+      direction: "app",
+      detail: "response is not an object",
+    };
   }
   const protocol = readProtocol(parsed);
   if (protocol !== PROTOCOL_VERSION) {
+    // 协议更高 = 插件太旧（更新扩展）；更低或缺失 = App 太旧。两者给用户的动作不同。
     return {
       kind: "outdated",
+      direction:
+        typeof protocol === "number" && protocol > PROTOCOL_VERSION
+          ? "plugin"
+          : "app",
       detail: `protocol ${String(protocol)} is not ${PROTOCOL_VERSION}`,
     };
   }
@@ -90,7 +103,11 @@ function parseDeviceList(stdout: string): CliResult<DeviceListResponse> {
   }
   const list = toDeviceList(parsed);
   if (!list) {
-    return { kind: "outdated", detail: "device list has an unexpected shape" };
+    return {
+      kind: "outdated",
+      direction: "app",
+      detail: "device list has an unexpected shape",
+    };
   }
   return { kind: "ok", value: list };
 }
@@ -112,12 +129,16 @@ async function isExecutable(path: string): Promise<boolean> {
   }
 }
 
-/** 偏好设置里的路径优先；留空或不可用则按候选列表探测。`null` 表示都没找到。 */
+/**
+ * 偏好设置里的路径优先；留空或不可用则**回退**到候选列表（陈旧偏好不该让命令直接失效）。
+ * `null` 表示都没找到——调用方据此进入安装空态。`searchPaths` 仅为测试注入。
+ */
 export async function resolveCliPath(
   preferencePath?: string,
+  searchPaths: string[] = candidates(),
 ): Promise<string | null> {
   const explicit = preferencePath?.trim();
-  for (const path of explicit ? [explicit, ...candidates()] : candidates()) {
+  for (const path of explicit ? [explicit, ...searchPaths] : searchPaths) {
     if (await isExecutable(path)) return path;
   }
   return null;

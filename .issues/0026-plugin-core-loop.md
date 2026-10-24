@@ -2,8 +2,8 @@
 id: "0026"
 title: "插件接真 helper：设备列表与切换闭环"
 labels: [ready-for-agent]
-status: open
-claimed-by: ""
+status: closed
+claimed-by: "impl-0026"
 blocked-by: ["0024"]
 ---
 
@@ -34,3 +34,22 @@ blocked-by: ["0024"]
 ## Blocked by
 
 - [helper CLI 落地：voiceinput-cli 三命令与打包签名](0024-helper-cli.md)
+
+## Resolution
+
+（closed 2026-10-24）插件已跑在**真 helper** 上（`~/Applications/VoiceInput.app/Contents/MacOS/voiceinput-cli`，来自 0024 的构建），不再有任何临时桩。
+
+**真机证据**（Raycast `Switch Audio Input`，`/tmp/vi-probe/viax` 驱动 + 独立的 HAL 探针交叉验证）：
+
+| 验收项 | 结果 |
+|---|---|
+| 列表与 `voiceinput-cli list` 一致 | ✅ 8 台设备、HAL 原序、`当前` 落在默认设备 |
+| 回车切换真的改变系统默认 | ✅ 177 → 209，独立探针读 HAL 亦为 209 |
+| 切换耗时 | ✅ **271–290 ms** |
+| HUD 出现且主窗口自动关闭 | ✅ 窗口在切换完成后关闭（`showHUD` 自带） |
+| `⌘R` 跟随外部改动 | ✅ 外部改默认后 `当前` 立即移动（0021 已验，本轮回归通过） |
+| 连续开关命令无旧数据 | ✅ 每个会话都重新执行 helper；`useCachedPromise` 等缓存 API 全案禁用 |
+| 缺 helper → 安装空态 | ✅ 见 0027 的 A 态实测 |
+| 构建与单测 | ✅ `npm run build` 通过；`vitest` 20 passed |
+
+**路径解析实证**：`/Applications/VoiceInput.app` 存在但**没有** helper（旧版本），插件按候选顺序继续探测并落到 `~/Applications`——回退逻辑在真机上正好被这台机器验证到了。

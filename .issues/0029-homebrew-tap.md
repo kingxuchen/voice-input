@@ -26,3 +26,7 @@ blocked-by: ["0025"]
 ## Blocked by
 
 - [首发分发包：安装脚本 + Release 产物](0025-install-and-release.md)
+
+## Progress（2026-10-24，未开始）
+
+阻塞在需要**新建一个公开仓库**（`kingxuchen/homebrew-tap`）作为 tap 载体——这是对外可见的仓库创建动作，需你授权后我才能做。Formula 的源码构建路径已由 0024 的 `release.sh` 打通（打 tag 后 tap 指向该 tag 即可）。

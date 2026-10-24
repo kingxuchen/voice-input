@@ -35,5 +35,5 @@ export type CliResult<T> =
   | { kind: "ok"; value: T }
   | { kind: "missing" }
   | { kind: "timeout" }
-  | { kind: "outdated"; detail: string }
+  | { kind: "outdated"; direction: "app" | "plugin"; detail: string }
   | { kind: "failed"; code: ErrorCode | "unknown"; detail: string };

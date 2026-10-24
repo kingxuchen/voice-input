@@ -13,6 +13,8 @@ export type Strings = {
   cannotReadDevices: string;
   timedOut: string;
   outdated: string;
+  pluginOutdated: string;
+  updateExtension: string;
   current: string;
   switchToThisInput: string;
   refresh: string;
@@ -35,6 +37,8 @@ const en: Strings = {
   cannotReadDevices: "Cannot read audio devices",
   timedOut: "Reading devices timed out",
   outdated: "VoiceInput is out of date",
+  pluginOutdated: "This extension is out of date",
+  updateExtension: "Update Extension",
   current: "Current",
   switchToThisInput: "Switch to This Input",
   refresh: "Refresh",
@@ -56,6 +60,8 @@ const zh: Strings = {
   cannotReadDevices: "无法读取音频设备",
   timedOut: "读取设备超时",
   outdated: "VoiceInput 版本过旧",
+  pluginOutdated: "插件版本过旧",
+  updateExtension: "更新扩展",
   current: "当前",
   switchToThisInput: "切换到此音源",
   refresh: "刷新",

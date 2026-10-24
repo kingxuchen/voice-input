@@ -181,6 +181,10 @@ brew install kingxuchen/tap/voiceinput
 脚本地址钉 `main`（文本不随版本变），脚本内部再解析最新 release。
 
 **`scripts/install.sh` 契约**（`set -euo pipefail`）
+
+- 环境变量：`VERSION=v1.0.0` 覆盖版本；`BASE_URL` 覆盖下载来源（镜像 / 离线自检用，默认 GitHub Release 地址）。
+- 先在暂存路径完成「校验和 → 解压 → helper 预检」，**通过后才替换**已安装 App（原子替换，避免"旧版没了、新版是坏的"）。
+- 已有同名 App 时先核对 bundle id，不是本应用则中止（沿用 `bundle-app.sh` 的既有约定）。
 1. 解析 latest release（GitHub API；`VERSION=v1.0.0` 可覆盖以规避限流）；
 2. 下载 `VoiceInput-<version>.zip` 与 `.sha256` 到临时目录，`shasum -a 256 -c` 校验；
 3. `ditto -x -k` 解压 → 替换 `~/Applications/VoiceInput.app`（先删旧）；

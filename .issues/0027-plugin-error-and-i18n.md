@@ -2,8 +2,8 @@
 id: "0027"
 title: "插件异常面与双语收口：四种错误态 + 中英文案"
 labels: [ready-for-agent]
-status: open
-claimed-by: ""
+status: closed
+claimed-by: "impl-0027"
 blocked-by: ["0026"]
 ---
 
@@ -34,3 +34,39 @@ blocked-by: ["0026"]
 ## Blocked by
 
 - [插件接真 helper：设备列表与切换闭环](0026-plugin-core-loop.md)
+
+## Resolution
+
+（closed 2026-10-24）
+
+### 四种异常态的真机实测（AX 读屏，临时替换 helper 后已全部还原）
+
+| 态 | 制造方式 | 界面实际显示 |
+|---|---|---|
+| helper 缺失 | 移走整个 App | ✅ `未安装 VoiceInput` + `安装 VoiceInput 伴侣应用后，即可列出并切换音频输入设备。` |
+| 协议不兼容 | helper 输出 `protocol: 9` | ✅ `VoiceInput 版本过旧` + `重试` |
+| 读取超时 | helper `sleep 5`（预算 2000 ms） | ✅ `读取设备超时` + `重试` |
+| 设备消失 | `list` 正常、`set-default` 返回 `device_not_found`（退出 4） | ✅ 列表**保持打开并重读**，失败提示走 toast（见下方偏离说明） |
+
+### 一处与规格的偏离（已裁决，写进结论）
+
+规格写的是「设备消失 → 自动重读 + **HUD**」。实现用 **toast**：`showHUD` 会**自动关闭主窗口**，而这类失败恰恰要用户留在列表里重选——关窗等于把人赶走。成功才用 HUD。三种失败反馈（断开/写入失败/其他）统一走 toast，窗口保持打开。
+
+### 新增测试（TDD，都是真实子进程或纯函数，不 mock 业务）
+
+- `cli.integration.test.ts`（7 条）：用临时 shell 桩造真实退出码与输出，覆盖 `protocol` 不匹配、非 JSON、找不到 helper、`hal_error`、`device_not_found`、`switch_failed`、成功回读。
+- `feedback.test.ts`（4 条）：把「CLI 结果 → 界面动作」抽成纯函数 `switchFeedback`，钉死成功用回读状态、设备消失要求重读、其余失败不静默。
+- 更正一条记录：`resolveCliPath` 的「偏好路径不可用即回退自动探测」是**原有行为**，本次没有改语义，只是加了可注入的探测列表让测试不依赖本机是否装了 App（先前这条写成了「修正语义」，与事实不符）。
+- `vitest` 合计 **20 passed**。
+
+### 语言
+
+`zh-Hans-CN` 系统下界面为中文（`切换到此音源…`/`当前`/`未安装 VoiceInput` 等均为实测原文），语言判定走 `defaults read -g AppleLanguages`（`Intl` 在本机把中文报成 `en-CN`，见 0021）。从根搜索带查询进入不再出现 `No Results`（回归通过）。
+
+### review 后追加修正（两个审查轴都命中）
+
+1. **「App 太旧」与「插件太旧」之前混成一个状态**：`protocol` 高于插件 → 现在提示「插件版本过旧」+ 更新扩展动作；低于或缺失 → 「VoiceInput 版本过旧」+ 复制升级命令。两个方向给用户的动作完全不同，不能合并。
+2. **`switch_failed` 之前不重读**：写入报错时 HAL 可能已切走，现在也走「重读 + 提示」路径。
+3. **提示里的设备名之前照抄用户点的那台**：现在取自回读结果里 `isDefault` 的设备，系统回落时不会报错设备名。
+4. **测试补强**：新增 `bad_usage`、协议双向（高/低）、`setDefault` 真的把 `set-default <id>` 传给 helper（用桩记录 argv）、`resolveCliPath` 三段独立用例（找不到 / 回退 / 偏好优先）；删掉无作用的桩代码并清理临时目录。
+5. 文案与实现的两处自述更正：`resolveCliPath` 的「回退」是原有行为（本次仅加测试注入参数）。

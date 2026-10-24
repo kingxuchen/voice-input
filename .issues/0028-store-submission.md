@@ -3,7 +3,7 @@ id: "0028"
 title: "Store 提交包：截图、文档与 lint 全绿"
 labels: [ready-for-agent]
 status: open
-claimed-by: ""
+claimed-by: "impl-0028"
 blocked-by: ["0025", "0027"]
 ---
 
@@ -33,3 +33,15 @@ blocked-by: ["0025", "0027"]
 
 - [首发分发包：安装脚本 + Release 产物](0025-install-and-release.md)
 - [插件异常面与双语收口：四种错误态 + 中英文案](0027-plugin-error-and-i18n.md)
+
+## Progress（2026-10-24，资产部分）
+
+- 已有合规截图 1 张：`raycast/metadata/01-device-list.png`（2000×1250，设备列表含「当前」）。
+- 图标 512×512：`raycast/assets/icon.png`（复用 App 麦克风素材）。
+- `README.md` 双语 + 前置条件与两条安装命令；`CHANGELOG.md` 初版含 `{PR_MERGE_DATE}`。
+- `ray lint` 除 `author` 外全绿（ESLint / Prettier / manifest 其余字段 / 图标 / metadata 校验均通过）。
+
+**未完成（两处需要你的账号或人工操作）**：
+1. `package.json` 的 `author` 必须填**你的真实 Raycast 账号名**——`kingxuchen` 在 raycast.com 返回 404，这是 `ray lint` 唯一未过项。我不知道你的 Raycast 用户名，不能猜。
+2. 还差 2 张截图（缺 CLI 安装空态、切换后的 HUD）。自动化抓 Raycast 主窗口不稳定（窗口常在其他 Space，抓出来是空白），建议发布前在界面里手动截：打开命令 → `⇧⌘4` 空格选窗口。
+3. 提交 `npx ray publish`（会向公共 `raycast/extensions` 提 PR，属对外可见动作，需你确认后执行）。

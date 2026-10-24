@@ -20,6 +20,7 @@ import {
   SOUND_SETTINGS_URL,
   VOICEINPUT_APP_PATH,
 } from "./lib/constants";
+import { switchFeedback } from "./lib/feedback";
 import { stringsFor, type Strings } from "./lib/i18n";
 import type { AudioDevice, CliResult, DeviceListResponse } from "./lib/types";
 
@@ -28,7 +29,7 @@ type State =
   | { kind: "ready"; devices: AudioDevice[] }
   | { kind: "missing" }
   | { kind: "timeout" }
-  | { kind: "outdated" }
+  | { kind: "outdated"; direction: "app" | "plugin" }
   | { kind: "failed" };
 
 /** CLI 结果 → 界面状态。缺 CLI 走安装空态，不是错误页。 */
@@ -41,7 +42,7 @@ function toState(result: CliResult<DeviceListResponse>): State {
     case "timeout":
       return { kind: "timeout" };
     case "outdated":
-      return { kind: "outdated" };
+      return { kind: "outdated", direction: result.direction };
     case "failed":
       return { kind: "failed" };
   }
@@ -158,21 +159,24 @@ async function switchTo(
   setState: (state: State) => void,
   reload: () => Promise<void>,
 ) {
-  const result = await setDefault(device.id, cliPath);
-  if (result.kind === "ok") {
-    setState({ kind: "ready", devices: result.value.devices });
-    await showHUD(t.switchedTo(device.displayName));
+  const feedback = switchFeedback(
+    await setDefault(device.id, cliPath),
+    device,
+    t,
+  );
+
+  if (feedback.kind === "ok") {
+    setState({ kind: "ready", devices: feedback.devices });
+    // HUD 会自动关闭主窗口：切换成功就是要离开。
+    await showHUD(feedback.message);
     return;
   }
-  if (result.kind === "failed" && result.code === "device_not_found") {
+
+  if (feedback.kind === "reload") {
+    // 设备在切换瞬间消失：重读而不是留下一个说谎的列表。窗口保持打开，方便直接重选。
     await reload();
-    await showToast({
-      style: Toast.Style.Failure,
-      title: t.deviceDisconnected,
-    });
-    return;
   }
-  await showToast({ style: Toast.Style.Failure, title: t.switchFailed });
+  await showToast({ style: Toast.Style.Failure, title: feedback.message });
 }
 
 function ErrorView(props: {
@@ -221,11 +225,14 @@ function ErrorView(props: {
     );
   }
 
+  // 「App 太旧」要用户升级伴侣 App；「插件太旧」只能更新扩展——两者动作不同，文案不能混。
   const title =
     state.kind === "timeout"
       ? t.timedOut
       : state.kind === "outdated"
-        ? t.outdated
+        ? state.direction === "plugin"
+          ? t.pluginOutdated
+          : t.outdated
         : t.cannotReadDevices;
 
   return (
@@ -235,10 +242,17 @@ function ErrorView(props: {
       actions={
         <ActionPanel>
           {retryAction}
-          {state.kind === "outdated" && (
+          {state.kind === "outdated" && state.direction === "app" && (
             <Action.CopyToClipboard
               title={t.copyInstallCommand}
               content={INSTALL_COMMAND}
+            />
+          )}
+          {state.kind === "outdated" && state.direction === "plugin" && (
+            <Action
+              title={t.updateExtension}
+              icon={Icon.Download}
+              onAction={openExtensionPreferences}
             />
           )}
           <Action

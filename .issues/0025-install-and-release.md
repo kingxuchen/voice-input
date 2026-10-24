@@ -3,7 +3,7 @@ id: "0025"
 title: "首发分发包：安装脚本 + Release 产物"
 labels: [ready-for-agent]
 status: open
-claimed-by: ""
+claimed-by: "impl-0025"
 blocked-by: ["0024"]
 ---
 
@@ -32,3 +32,24 @@ blocked-by: ["0024"]
 ## Blocked by
 
 - [helper CLI 落地：voiceinput-cli 三命令与打包签名](0024-helper-cli.md)
+
+## Progress（2026-10-24，代码部分完成）
+
+- `scripts/install.sh`：解析 latest release（`VERSION=v1.0.0` 可覆盖）→ 下载 zip + `.sha256` → `shasum -c` 校验 → `ditto` 解压 → 替换 `~/Applications/VoiceInput.app` → `xattr -cr` → helper 自检 → `open`。`BASE_URL` 可指向镜像/本地目录（离线测试用）。
+- `scripts/release.sh`：从 `bundle-app.sh` 读 `VERSION`（唯一来源）→ 构建 → `ditto` 打 zip → 生成 sha256 → 打印 `git tag` 与 `gh release create` 命令，不自动上传。
+- 本机实测（`BASE_URL=file://…/dist`，先删 App）：
+
+| 场景 | 结果 |
+|---|---|
+| 正常安装 | ✅ 落到 `~/Applications`，helper `version` 返回 1.0.0，无 `com.apple.quarantine` |
+| 重跑（幂等） | ✅ 覆盖安装成功 |
+| 校验和不匹配 | ✅ 非零退出 +「校验和不匹配，已中止」 |
+| 版本不存在 | ✅ 非零退出 +「下载失败: …」 |
+
+**未完成（需仓库所有者执行，我未越权改动仓库可见性）**：
+1. 主仓 `kingxuchen/voice-input` 转 public；
+2. `git tag v1.0.0 && git push origin v1.0.0`；
+3. `gh release create v1.0.0 dist/VoiceInput-1.0.0.zip dist/VoiceInput-1.0.0.zip.sha256 --repo kingxuchen/voice-input`；
+4. 发布后用 `VERSION=v1.0.0 bash scripts/install.sh`（不带 `BASE_URL`）跑一次真实下载自检。
+
+产物已在 `dist/`（zip 1.4 MB + sha256），执行上面三条命令即可发版。
