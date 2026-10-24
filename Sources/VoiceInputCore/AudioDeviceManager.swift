@@ -34,6 +34,9 @@ public final class AudioDeviceManager {
         MenuModel.deviceItems(devices: devices, defaultDeviceID: defaultDeviceID)
     }
 
+    /// 重读系统真实状态：设备列表与当前默认输入。
+    ///
+    /// 菜单每次打开都会调用（见 `MenuOpenObserver`），保证展示的是最新音源。
     public func refresh() {
         devices = provider.inputDevices()
         defaultDeviceID = provider.defaultInputDeviceID()

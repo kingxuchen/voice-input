@@ -13,12 +13,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct VoiceInputApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var manager = AudioDeviceManager(provider: CoreAudioDeviceProvider())
-    @State private var launchAtLogin = LaunchAtLoginController()
+    @State private var state = AppState(
+        provider: CoreAudioDeviceProvider(),
+        launchAtLoginService: SMAppServiceLoginItem()
+    )
 
     var body: some Scene {
         MenuBarExtra {
-            AudioDeviceMenuView(manager: manager, launchAtLogin: launchAtLogin)
+            AudioDeviceMenuView(manager: state.manager, launchAtLogin: state.launchAtLogin)
         } label: {
             Image(systemName: "mic")
                 .help("输入音源")

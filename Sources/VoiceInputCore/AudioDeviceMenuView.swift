@@ -14,10 +14,6 @@ public struct AudioDeviceMenuView: View {
 
     public var body: some View {
         content
-            .onAppear {
-                // 菜单每次打开都重读一次系统真实登录项状态（用户可能在系统设置里改过）。
-                launchAtLogin.refresh()
-            }
     }
 
     @ViewBuilder

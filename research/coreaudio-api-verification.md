@@ -103,6 +103,12 @@ Core Audio 提供两个注册监听接口：
     必须将菜单内容抽离为独立的子视图（如 `struct AudioDeviceMenuView: View`），并将 `@Observable var manager: AudioDeviceManager` 作为参数传入。子视图的 `body` 能够建立严谨的 Observation 追踪链路，保证设备插拔或默认设备切换时菜单内容准确更新。
   - **勾选反馈（Checkmark）**：
     在原生 `NSMenu` 映射中，可以通过在 `Button` label 文本前置 `"✓  "` 或 `"    "`（固定宽度）的方式提供清晰的视觉勾选，既保持原生菜单的点击即关闭语义，又避免了 `Toggle` 带来的开关误解。
+- **「每次点开菜单都重读系统状态」的触发点（2026-10-24 真机 AX 实证补测）**：
+  - **`onAppear` 不可用于此目的**：AX 实测连续开关状态栏菜单，`onAppear` **只在第一次出现时触发一次**（菜单视图被 SwiftUI 复用，不再重新 appear）。因此 `onAppear` 只能覆盖「首次打开」，代表不了「每次点开菜单」。
+  - **可用触发点：`NSMenu.didBeginTrackingNotification`**：每次菜单开始跟踪（= 即将显示）时发出，通知对象是 SwiftUI 自己生成的 `SwiftUIMenu`（**不是** `NSApp.mainMenu`）。实测该通知到达时该 `NSMenu` 的 `items` 数组**仍为空** —— 即通知早于 SwiftUI 用当前状态构建菜单条目，因此在通知回调里同步刷新，**本次打开就能展示最新状态**。
+  - **通知同步送达**：`NotificationCenter` 用 `queue: nil` 注册，回调在发出通知的线程（主线程）同步执行，无需 `await`。
+  - **排除主菜单树**：App 主菜单（Apple 菜单 / App 菜单及其子菜单）跟踪时也会发同一通知；需按身份排除，否则点系统菜单也会触发刷新。
+  - **已打开菜单会就地更新**：菜单打开期间 `@Observable` 状态变化，已渲染的 `NSMenuItem` 标题会同步更新（AX 采样实测），所以「打开时刷新」与「打开中变化」两条路径都能让用户看到最新状态。
 
 ---
 
