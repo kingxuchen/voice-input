@@ -47,7 +47,7 @@ describe("switchFeedback", () => {
 
   it("设备已消失 → 要求重读列表，并给出明确提示", () => {
     const result = switchFeedback(
-      { kind: "failed", code: "device_not_found", detail: "device_not_found" },
+      { kind: "failed", code: "device_not_found" },
       device,
       t,
     );
@@ -59,7 +59,7 @@ describe("switchFeedback", () => {
 
   it("写入失败 → 也要重读列表（系统可能已变），并提示切换失败", () => {
     const result = switchFeedback(
-      { kind: "failed", code: "switch_failed", detail: "switch_failed" },
+      { kind: "failed", code: "switch_failed" },
       device,
       t,
     );
@@ -68,7 +68,7 @@ describe("switchFeedback", () => {
 
   it("bad_usage 属于插件自身问题，提示失败但不重读", () => {
     const result = switchFeedback(
-      { kind: "failed", code: "bad_usage", detail: "bad_usage" },
+      { kind: "failed", code: "bad_usage" },
       device,
       t,
     );

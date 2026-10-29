@@ -65,7 +65,7 @@ describe("toState", () => {
     expect(toState({ kind: "missing" })).toEqual({ kind: "missing" });
     expect(toState({ kind: "timeout" })).toEqual({ kind: "timeout" });
     expect(
-      toState({ kind: "failed", code: "hal_error", detail: "-50" }),
+      toState({ kind: "failed", code: "hal_error" }),
     ).toEqual({ kind: "failed" });
     expect(
       toState({ kind: "outdated", direction: "app", detail: "x" }),
