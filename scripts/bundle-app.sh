@@ -20,6 +20,10 @@ set -euo pipefail
 trap 'status=$?; if [[ $status -ne 0 && -n "${APP_DIR:-}" ]]; then rm -rf "${APP_DIR}"; echo "构建失败，已清理半成品 ${APP_DIR}" >&2; fi' EXIT
 
 # --- 1. 常量（SPEC 0006 定稿：Bundle ID 全小写 voiceinput）------------------
+# BUNDLE_ID 是应用身份的唯一真值：下面写进 Info.plist，代码侧一律问 Bundle.main 要，
+# 只有 swift run / swift test 没有 app bundle 时才回落到 AppIdentity.fallbackBundleIdentifier。
+# 那处回落值必须等于这里的值（否则 swift run 与已安装的 .app 会各自拿到不同的单例锁），
+# 一致性由 Tests/VoiceInputCoreTests/AppIdentityTests.swift 直接读本脚本钉住。
 APP_NAME="VoiceInput"
 BUNDLE_ID="com.fanbingbing.voiceinput"
 VERSION="1.0.0"
@@ -233,7 +237,8 @@ if [[ -n "${INSTALL_DIR}" ]]; then
         echo "    提示: 检测到 ${APP_NAME} 正在运行，覆盖安装后请重启进程以加载新版本。"
     fi
 
-    # 覆盖前先看一眼已存在的是什么：来源不明的同名 app 不应被静默删掉
+    # 覆盖前先看一眼已存在的是什么：来源不明的同名 app 不应被静默删掉。
+    # 期望值就是本次刚写进 Info.plist 的 BUNDLE_ID，不另外引入第三个字符串。
     if [[ -e "${TARGET}" ]]; then
         EXISTING_ID="$(defaults read "${TARGET}/Contents/Info" CFBundleIdentifier 2>/dev/null || echo "未知")"
         if [[ "${EXISTING_ID}" != "${BUNDLE_ID}" ]]; then

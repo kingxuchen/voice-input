@@ -16,7 +16,6 @@
 set -euo pipefail
 
 APP_NAME="VoiceInput"
-BUNDLE_ID="com.fanbingbing.voiceinput"
 REPO="kingxuchen/voice-input"
 DEST_DIR="${HOME}/Applications"
 DEST_APP="${DEST_DIR}/${APP_NAME}.app"
@@ -85,10 +84,13 @@ xattr -cr "${STAGING}" || fail "清除隔离属性失败"
 "${STAGING}/Contents/MacOS/voiceinput-cli" version >/dev/null || fail "暂存安装的文件无法运行，已放弃替换"
 
 if [[ -e "${DEST_APP}" ]]; then
-    # 与 bundle-app.sh 一致：先确认目标位置是不是本应用，避免静默删掉同名但来源不明的 App
+    # 先确认目标位置是不是本应用，避免静默删掉同名但来源不明的 App。
+    # 判断依据取自安装包自己的 Info.plist（暂存区那份），脚本里不另存一份 bundle id——
+    # 应用身份只有 bundle-app.sh 一处真值，这里跟着它走就不会分叉。
     EXISTING_ID="$(defaults read "${DEST_APP}/Contents/Info" CFBundleIdentifier 2>/dev/null || echo "未知")"
-    [[ "${EXISTING_ID}" == "${BUNDLE_ID}" ]] \
-        || fail "目标位置已存在来源不明的同名应用（bundle id = ${EXISTING_ID}）。已中止，未做改动。"
+    NEW_ID="$(defaults read "${STAGING}/Contents/Info" CFBundleIdentifier 2>/dev/null || echo "未知")"
+    [[ "${EXISTING_ID}" != "未知" && "${EXISTING_ID}" == "${NEW_ID}" ]] \
+        || fail "目标位置已存在不同来源的同名应用（现有 bundle id = ${EXISTING_ID}，安装包 = ${NEW_ID}）。已中止，未做改动。"
     if pgrep -x "${APP_NAME}" >/dev/null 2>&1; then
         echo "    提示: ${APP_NAME} 正在运行，安装完成后请重启它以加载新版本。"
     fi

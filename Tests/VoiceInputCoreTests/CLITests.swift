@@ -80,20 +80,18 @@ struct CLIRunnerTests {
         #expect(devices.map { $0["name"] as? String } == ["麦克风", "麦克风", "麦克风"])
     }
 
-    @Test("读不到当前默认输入时报 hal_error，而不是给出无勾选的列表")
-    func halErrorWhenDefaultUnreadable() {
+    @Test("有设备但没有默认输入是合法快照：照常列设备，只是没人打勾")
+    func noDefaultInputStillListsDevices() {
         let provider = makeStandardProvider()
         provider.defaultID = nil
 
         let execution = runner(provider).run(.list(pretty: false))
 
-        #expect(execution.exitCode == 3)
-        let payload = json(execution.stdout)
-        let error = payload["error"] as? [String: Any] ?? [:]
-        #expect(payload["protocol"] as? Int == 1)
-        #expect(error["code"] as? String == "hal_error")
-        #expect((error["message"] as? String)?.isEmpty == false)
-        #expect(!execution.stderr.isEmpty)
+        #expect(execution.exitCode == 0)
+        #expect(execution.stderr.isEmpty)
+        let devices = json(execution.stdout)["devices"] as? [[String: Any]] ?? []
+        #expect(devices.map { $0["id"] as? Int } == [177, 93, 115])
+        #expect(devices.filter { $0["isDefault"] as? Bool == true }.isEmpty)
     }
 
     @Test("set-default 返回回读后的完整状态，而不是回显入参")
@@ -158,42 +156,106 @@ struct CLIRunnerTests {
         #expect(execution.stdout.contains("\n  "))
     }
 
-    @Test("枚举不出任何设备时是 hal_error，而不是空列表成功")
-    func halErrorWhenNoDevices() {
+    @Test("一台输入设备都没有是 ok + 空列表，不是 hal_error")
+    func noDevicesIsOkWithEmptyList() {
         let provider = FakeAudioDeviceProvider()
         provider.devices = []
-        provider.defaultID = 177
+        provider.defaultID = nil
 
         let execution = runner(provider).run(.list(pretty: false))
 
-        #expect(execution.exitCode == 3)
-        let error = json(execution.stdout)["error"] as? [String: Any] ?? [:]
-        #expect(error["code"] as? String == "hal_error")
+        #expect(execution.exitCode == 0)
+        #expect(execution.stderr.isEmpty)
+        let payload = json(execution.stdout)
+        #expect(payload["protocol"] as? Int == 1)
+        #expect((payload["devices"] as? [[String: Any]])?.isEmpty == true)
     }
 
-    @Test("默认设备不在设备集合里时是 hal_error，而不是无勾选的列表")
-    func halErrorWhenDefaultMissingFromList() {
+    @Test("默认设备不在设备集合里（刚被拔掉）时照常列设备，没人打勾")
+    func defaultMissingFromListLeavesNobodyChecked() {
         let provider = makeStandardProvider()
         provider.defaultID = 42
 
         let execution = runner(provider).run(.list(pretty: false))
 
+        #expect(execution.exitCode == 0)
+        let devices = json(execution.stdout)["devices"] as? [[String: Any]] ?? []
+        #expect(devices.map { $0["id"] as? Int } == [177, 93, 115])
+        #expect(devices.filter { $0["isDefault"] as? Bool == true }.isEmpty)
+    }
+
+    @Test("设备枚举真失败时是 hal_error + 退出码 3，message 带上属性码与 OSStatus")
+    func halErrorWhenDeviceReadFails() {
+        let provider = makeStandardProvider()
+        provider.devicesFailure = sampleReadFailure
+
+        let execution = runner(provider).run(.list(pretty: false))
+
+        #expect(execution.exitCode == 3)
+        let payload = json(execution.stdout)
+        let error = payload["error"] as? [String: Any] ?? [:]
+        #expect(payload["protocol"] as? Int == 1)
+        #expect(error["code"] as? String == "hal_error")
+        // 诊断信息只走 message/stderr：契约 0017 只认 error.code，不能加线上字段。
+        let message = error["message"] as? String ?? ""
+        #expect(message.contains("dev#"))
+        #expect(message.contains("-50"))
+        #expect(!execution.stderr.isEmpty)
+    }
+
+    @Test("默认输入真读不到时也是 hal_error，而不是给出无勾选的列表")
+    func halErrorWhenDefaultReadFails() {
+        let provider = makeStandardProvider()
+        provider.defaultFailure = sampleReadFailure
+
+        let execution = runner(provider).run(.list(pretty: false))
+
         #expect(execution.exitCode == 3)
         let error = json(execution.stdout)["error"] as? [String: Any] ?? [:]
         #expect(error["code"] as? String == "hal_error")
     }
 
-    @Test("切换后回读失败时是 hal_error，不返回写入前的旧状态")
-    func halErrorWhenReadbackFails() {
+    @Test("set-default 前置读取失败时是 hal_error，且不写系统状态")
+    func setDefaultReadFails() {
+        let provider = makeStandardProvider()
+        provider.devicesFailure = sampleReadFailure
+
+        let execution = runner(provider).run(.setDefault(id: 93, pretty: false))
+
+        #expect(execution.exitCode == 3)
+        #expect(provider.setDefaultCalls.isEmpty)
+        let error = json(execution.stdout)["error"] as? [String: Any] ?? [:]
+        #expect(error["code"] as? String == "hal_error")
+    }
+
+    @Test("切换后读不回默认设备是合法回读：返回列表但没人打勾")
+    func readbackWithoutDefaultStillSucceeds() {
         let provider = makeStandardProvider()
         provider.defaultID = 177
         provider.clearDefaultAfterWrite = true
 
         let execution = runner(provider).run(.setDefault(id: 93, pretty: false))
 
+        #expect(execution.exitCode == 0)
+        #expect(provider.setDefaultCalls == [93])
+        let devices = json(execution.stdout)["devices"] as? [[String: Any]] ?? []
+        #expect(devices.map { $0["id"] as? Int } == [177, 93, 115])
+        #expect(devices.filter { $0["isDefault"] as? Bool == true }.isEmpty)
+    }
+
+    @Test("切换后回读真失败时是 hal_error，不返回写入前的旧状态")
+    func halErrorWhenReadbackFails() {
+        let provider = makeStandardProvider()
+        // 写入确实生效了，但回读时 HAL 读不到：必须报错，不能拿写之前的快照糊弄调用方。
+        provider.readFailureAfterWrite = sampleReadFailure
+
+        let execution = runner(provider).run(.setDefault(id: 93, pretty: false))
+
         #expect(execution.exitCode == 3)
+        #expect(provider.setDefaultCalls == [93])
         let error = json(execution.stdout)["error"] as? [String: Any] ?? [:]
         #expect(error["code"] as? String == "hal_error")
+        #expect(execution.stdout.contains("\"devices\"") == false)
     }
 
     @Test("--pretty 只影响排版，语义等价")

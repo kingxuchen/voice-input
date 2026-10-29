@@ -6,10 +6,10 @@ import CoreAudio
 @MainActor
 struct CoreAudioDeviceProviderTests {
     @Test("枚举出的设备名称非空且 ID 唯一")
-    func enumeratesInputDevices() {
+    func enumeratesInputDevices() throws {
         let provider = CoreAudioDeviceProvider()
 
-        let devices = provider.inputDevices()
+        let devices = try provider.inputDevices()
 
         #expect(!devices.isEmpty)
         #expect(devices.allSatisfy { !$0.name.isEmpty })
@@ -17,11 +17,11 @@ struct CoreAudioDeviceProviderTests {
     }
 
     @Test("默认输入设备 ID 落在枚举出的设备集合内")
-    func defaultInputIsEnumeratedDevice() {
+    func defaultInputIsEnumeratedDevice() throws {
         let provider = CoreAudioDeviceProvider()
 
-        let defaultID = provider.defaultInputDeviceID()
-        let devices = provider.inputDevices()
+        let defaultID = try provider.defaultInputDeviceID()
+        let devices = try provider.inputDevices()
 
         if let defaultID {
             #expect(devices.contains { $0.id == defaultID })

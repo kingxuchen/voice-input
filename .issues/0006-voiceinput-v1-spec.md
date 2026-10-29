@@ -47,19 +47,20 @@ blocked-by: []
   - 监听：`kAudioHardwarePropertyDevices` + `kAudioHardwarePropertyDefaultInputDevice` 两个属性监听器，事件 50ms 防抖。
 - **Swift 6 并发桥接**（已实测 0 警告 0 错误）：顶层 `nonisolated` C 函数指针作 `AudioObjectPropertyListenerProc`（不用 Block 变体，保证注销可靠）；`Unmanaged.passUnretained(self).toOpaque()` 传上下文；回调内 `Task { @MainActor in … }` 跳板；`isolated deinit`（SE-0371）注销监听。CFString 一律 `Unmanaged<CFString>?.takeRetainedValue()` 读取。
 - **模块划分**（两个模块，一个接缝）：
-  - `AudioDeviceManager`（`@Observable`，MainActor）：持有设备列表与默认设备 ID，负责刷新、防抖、切换动作。
+  - `AudioDeviceManager`（`@Observable`，MainActor）：只持有一个 `DeviceListState`（`.devices([…], defaultID:)` / `.unreadable(HALReadFailure)`），一次快照一次赋值，不存在「有列表、没默认」的半成品；负责刷新、防抖、切换动作。
   - `AudioDeviceMenuView`：独立子视图渲染菜单内容（设备列表 + 底部固定项），确保 `@Observable` 依赖注册正确、热插拔刷新。
   - **唯一测试接缝** `AudioDeviceProviding` 协议隔离 Core Audio；真实现 `CoreAudioDeviceProvider` 约 150 行。协议形状（编码自研究骨架）：
     ```swift
     @MainActor
     protocol AudioDeviceProviding {
-      func inputDevices() -> [AudioDevice]          // id + name，HAL 顺序
-      func defaultInputDeviceID() -> AudioDeviceID?
+      func inputDevices() throws(HALReadFailure) -> [AudioDevice]  // id + name，HAL 顺序；[] = HAL 答「没有输入设备」
+      func defaultInputDeviceID() throws(HALReadFailure) -> AudioDeviceID?  // nil = HAL 答「没有默认输入」
       func setDefaultInputDevice(id: AudioDeviceID) -> OSStatus
       func addListener(_ handler: @escaping () -> Void) -> Bool
       func removeListener()                          // deinit 时调用
     }
     ```
+    - **两个读取方法加 `throws(HALReadFailure)` 是 2026-10-29 质量审核后的修订**：原形状只能返回空值，于是「HAL 报错」和「HAL 答没有」被压成同一个空数组/`nil`，上层只能把故障伪装成空列表。改后判据唯一——HAL 返回 `noErr` 就如实转述返回值，非 `noErr` 才抛错。用 SE-0413 typed throws 而非 `Result`，是为了让调用点直接 `catch` 到 `HALReadFailure`（已实测可穿透 `any AudioDeviceProviding` 派发并被 `do/catch` 推断）。
     - **`@MainActor` 标注是 0007 实测后的必要修订**（方法签名逐字未变）：Swift 6 下 `@MainActor` 类型无法满足 nonisolated 协议需求（`#ConformanceIsolation`），而 provider 必须用 `isolated deinit` 可靠注销 HAL 监听器，两者不可兼得。实测三条路径：①直接 conform 编译失败；②`extension Impl: @MainActor P {}`（isolated conformance）能编译但在 `any P` 处**静默擦除隔离性**，非隔离上下文仍可调用，数据竞争退化为运行期风险；③协议标注 `@MainActor` 由编译器强制隔离。取③——调用方本就全在主线程，语义零损失。
 - **UI**：SwiftUI `MenuBarExtra(style: .menu)`，无 `WindowGroup`；图标 SF Symbol `mic`，tooltip"输入音源"；菜单内容解耦为 `AudioDeviceMenuView`。底部固定项：打开声音设置…（`x-apple.systempreferences:com.apple.Sound-Settings.extension`）／登录时启动（toggle）／退出 VoiceInput（`NSApp.terminate(nil)`）。
 - **名称与标识**：App 名 `VoiceInput`；`CFBundleIdentifier` = `com.fanbingbing.voiceinput`（反域名，SMAppService 硬要求）。

@@ -78,9 +78,12 @@ struct CLIRunner {
     func run(_ invocation: CLIInvocation) -> CLIExecution {
         switch invocation {
         case let .list(pretty):
-            let devices = readDevices()
-            return devices.map { success(DeviceListPayload(protocol: cliProtocolVersion, devices: $0), pretty: pretty) }
-                ?? halError("cannot read audio devices", pretty: pretty)
+            do {
+                let devices = try readDevices()
+                return success(DeviceListPayload(protocol: cliProtocolVersion, devices: devices), pretty: pretty)
+            } catch {
+                return halError(describe("cannot read audio devices", error), pretty: pretty)
+            }
 
         case let .version(pretty):
             return success(VersionPayload(protocol: cliProtocolVersion, appVersion: appVersion), pretty: pretty)
@@ -94,8 +97,11 @@ struct CLIRunner {
     }
 
     private func setDefault(id: AudioDeviceID, pretty: Bool) -> CLIExecution {
-        guard let devices = readDevices() else {
-            return halError("cannot read audio devices", pretty: pretty)
+        let devices: [CLIDevice]
+        do {
+            devices = try readDevices()
+        } catch {
+            return halError(describe("cannot read audio devices", error), pretty: pretty)
         }
         guard devices.contains(where: { $0.id == id }) else {
             return failure(code: .deviceNotFound, message: "no input device with id \(id)", exitCode: 4, pretty: pretty)
@@ -112,24 +118,26 @@ struct CLIRunner {
         }
 
         // 契约要求返回回读状态，而不是回显入参：系统可能拒绝、回落或另有变化。
-        guard let refreshed = readDevices() else {
-            return halError("cannot read audio devices after switching", pretty: pretty)
+        let refreshed: [CLIDevice]
+        do {
+            refreshed = try readDevices()
+        } catch {
+            return halError(describe("cannot read audio devices after switching", error), pretty: pretty)
         }
         return success(DeviceListPayload(protocol: cliProtocolVersion, devices: refreshed), pretty: pretty)
     }
 
-    /// 读设备列表并把「当前默认」落到 `isDefault` 上。
+    /// 读一次设备快照，把「当前默认」落到 `isDefault` 上。
     ///
-    /// 三种情况都算读取失败（返回 nil），因为任何一种都无法诚实地渲染列表：
-    /// - 枚举返回空（HAL 失败与「真的没有输入设备」对调用方是同一件事：没有可切的目标）；
-    /// - 读不到当前默认输入；
-    /// - 当前默认输入的 id 不在枚举结果里（设备刚被拔掉）。
-    private func readDevices() -> [CLIDevice]? {
-        let raw = provider.inputDevices()
-        guard !raw.isEmpty, let defaultID = provider.defaultInputDeviceID() else { return nil }
-        guard raw.contains(where: { $0.id == defaultID }) else { return nil }
-
-        let names = MenuModel.displayNames(for: raw)
+    /// 只有 HAL 真报错才抛。以下都是**合法快照**，各自诚实地表达：
+    /// - 一台输入设备都没有 → `devices: []`（插件据此说「未发现可用输入设备」）；
+    /// - 有设备但没有默认输入（HAL 答 `kAudioObjectUnknown`）→ 列表照给，没人打勾；
+    /// - 默认输入的 id 不在列表里（设备刚被拔掉）→ 同上，没人打勾。
+    /// 后两种以前被伪装成 `hal_error`，等于把 HAL 说实话当成了故障。
+    private func readDevices() throws(HALReadFailure) -> [CLIDevice] {
+        let raw = try provider.inputDevices()
+        let defaultID = try provider.defaultInputDeviceID()
+        let names = DeviceNaming.displayNames(for: raw)
         return raw.enumerated().map { index, device in
             CLIDevice(
                 id: device.id,
@@ -138,6 +146,12 @@ struct CLIRunner {
                 isDefault: device.id == defaultID
             )
         }
+    }
+
+    /// 失败原因只进 `message` 与 stderr（属性四字符码 + OSStatus），不进任何线上字段：
+    /// 0017 契约只认 `error.code`，加字段就是破坏协议。
+    private func describe(_ context: String, _ failure: HALReadFailure) -> String {
+        "\(context) (\(failure.selectorCode), OSStatus \(failure.status))"
     }
 }
 

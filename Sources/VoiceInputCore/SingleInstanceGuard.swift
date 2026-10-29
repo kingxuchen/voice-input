@@ -78,11 +78,11 @@ public final class SingleInstanceGuard {
     /// 默认锁文件位置：`~/Library/Application Support/<bundle id>/instance.lock`。
     ///
     /// 目录名用 bundle id 而非应用名：bundle id 是应用级唯一标识，可避免与同名应用
-    /// 抢占同一把锁。改动 `scripts/bundle-app.sh` 的 `BUNDLE_ID` 时这里要同步。
+    /// 抢占同一把锁。id 本身只由 `AppIdentity` 提供，这里不另抄一份。
     public static var defaultLockFileURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return appSupport
-            .appendingPathComponent(Self.bundleIdentifier, isDirectory: true)
+            .appendingPathComponent(AppIdentity.bundleIdentifier, isDirectory: true)
             .appendingPathComponent("instance.lock")
     }
 
@@ -101,12 +101,5 @@ public final class SingleInstanceGuard {
         return code == EWOULDBLOCK ? .heldByAnotherProcess : .failed(code)
     }
 
-    /// 与 `scripts/bundle-app.sh` 的 `BUNDLE_ID` 保持一致：既是 Application Support
-    /// 子目录名，也是统一日志的 subsystem。
-    private static let bundleIdentifier = "com.fanbingbing.voiceinput"
-
-    private static let logger = Logger(
-        subsystem: SingleInstanceGuard.bundleIdentifier,
-        category: "SingleInstance"
-    )
+    private static let logger = AppIdentity.logger(category: "SingleInstance")
 }

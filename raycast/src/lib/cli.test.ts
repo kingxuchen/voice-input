@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDeviceListForTest } from "./cli";
+import { parseDeviceList } from "./cli";
 
 const ok = JSON.stringify({
   protocol: 1,
@@ -22,7 +22,7 @@ const ok = JSON.stringify({
 
 describe("parseDeviceList", () => {
   it("契约形状原样映射，含同名序号 displayName", () => {
-    const result = parseDeviceListForTest(ok);
+    const result = parseDeviceList(ok);
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
     expect(result.value.devices.map((d) => d.displayName)).toEqual([
@@ -35,7 +35,7 @@ describe("parseDeviceList", () => {
   });
 
   it("保持 HAL 原序，不排序", () => {
-    const result = parseDeviceListForTest(
+    const result = parseDeviceList(
       JSON.stringify({
         protocol: 1,
         devices: [
@@ -52,24 +52,24 @@ describe("parseDeviceList", () => {
 
   it("protocol 不认识 → outdated（旧 App 或插件太旧）", () => {
     expect(
-      parseDeviceListForTest(JSON.stringify({ protocol: 2, devices: [] })).kind,
+      parseDeviceList(JSON.stringify({ protocol: 2, devices: [] })).kind,
     ).toBe("outdated");
-    expect(parseDeviceListForTest(JSON.stringify({ devices: [] })).kind).toBe(
+    expect(parseDeviceList(JSON.stringify({ devices: [] })).kind).toBe(
       "outdated",
     );
   });
 
   it("非法 JSON 与字段缺失 → outdated，不崩", () => {
-    expect(parseDeviceListForTest("not json").kind).toBe("outdated");
+    expect(parseDeviceList("not json").kind).toBe("outdated");
     expect(
-      parseDeviceListForTest(
+      parseDeviceList(
         JSON.stringify({ protocol: 1, devices: [{ id: "93" }] }),
       ).kind,
     ).toBe("outdated");
   });
 
   it("结构化错误映射到契约错误码", () => {
-    const result = parseDeviceListForTest(
+    const result = parseDeviceList(
       JSON.stringify({
         protocol: 1,
         error: { code: "device_not_found", message: "gone" },
@@ -78,12 +78,11 @@ describe("parseDeviceList", () => {
     expect(result).toEqual({
       kind: "failed",
       code: "device_not_found",
-      detail: "device_not_found",
     });
   });
 
   it("未知错误码归为 unknown，不伪造语义", () => {
-    const result = parseDeviceListForTest(
+    const result = parseDeviceList(
       JSON.stringify({ protocol: 1, error: { code: "wat" } }),
     );
     expect(result.kind).toBe("outdated");

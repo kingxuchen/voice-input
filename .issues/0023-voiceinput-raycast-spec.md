@@ -87,7 +87,7 @@ voiceinput-cli version [--pretty]
 |---|---|---|
 | `0` | — | 成功 |
 | `2` | `bad_usage` | 子命令/参数/`<id>` 形状错 |
-| `3` | `hal_error` | 设备枚举失败，**或当前默认输入读取失败**（读不到默认就不打勾，宁可报错不说谎） |
+| `3` | `hal_error` | HAL 调用**真返回非 `noErr`**：设备枚举、默认输入读取、或 `set-default` 的回读 |
 | `4` | `device_not_found` | `<id>` 不在当前输入设备集合里 |
 | `4` | `switch_failed` | `AudioObjectSetPropertyData` 写入失败 |
 
@@ -103,7 +103,7 @@ voiceinput-cli version [--pretty]
 1. `Package.swift` 新增 `executableTarget(name: "VoiceInputCLI", dependencies: ["VoiceInputCore"])`，产物名 `voiceinput-cli`。
 2. **实现落点（2026-10-24 实现后修订）**：解析、执行、编码放在 `VoiceInputCore`（`CLI.swift`），可执行目标只调一个公开入口 `CLIEntry.run(arguments:appVersion:)` 并退出——放在库里才能被单测直接驱动，`CLIEntry` 是唯一 public 符号。不链接 SwiftUI/AppKit 主循环。
 3. **`MenuModel.displayNames(for:)` 保持 internal**（原计划改 public 是错判：CLIRunner 本就在同一 module）。序号规则只有一份，不复制到 CLI。
-   三个"读失败"都算 `hal_error`：枚举为空、读不到当前默认、默认 id 不在枚举结果里——任何一种都无法诚实地渲染列表。
+   读失败只有一种：HAL 返回非 `noErr` → `hal_error`。**「HAL 答没有」不算读失败**（2026-10-29 修订）：枚举为空 → `devices: []` 的成功响应；没有默认输入、或默认 id 不在枚举里 → 列表照给、没人带 `isDefault: true`。原先这三者被压成 `hal_error`，导致插件把「真没有设备」渲染成「无法读取」。
 4. `scripts/bundle-app.sh`：
    - 用 `swift build -c release --show-bin-path` 动态取 `voiceinput-cli`（**禁止写死 `.build` 路径**）；
    - 复制进 `Contents/MacOS/voiceinput-cli`；
@@ -121,9 +121,13 @@ voiceinput-cli version [--pretty]
 raycast/
   package.json  tsconfig.json  eslint.config.js  vitest.config.mts
   README.md  CHANGELOG.md  assets/icon.png  metadata/*
-  src/switch-input.tsx            // 单条命令
+  src/switch-input.tsx            // 单条命令：取数 + 渲染 + 副作用派发，不含判定
   src/lib/cli.ts                  // 唯一 execFile 处：listDevices() / setDefault()
-  src/lib/types.ts                // 契约类型
+  src/lib/types.ts                // 契约类型（只放 CLI 协议模型）
+  src/lib/presentation.ts         // 视图模型：CLI 结果 → 界面状态 → 该画哪个空态
+  src/lib/searchText.ts           // 查询词继承的丢弃窗口（400 ms）
+  src/lib/filter.ts               // 自建搜索过滤
+  src/lib/feedback.ts             // 切换结果 → 反馈决定
   src/lib/i18n.ts                 // en/zh 文案表
   src/lib/constants.ts            // 安装命令、深链、App 路径
   src/lib/locale.ts               // 系统语言探测
@@ -148,6 +152,7 @@ raycast/
 | `ENOENT` / `EACCES` | 缺 CLI 空态（不是错误页） |
 | 退出 `2 bad_usage` | 错误页「无法读取音频设备」+ 重试 |
 | 退出 `3 hal_error` | 同上 |
+| 退出 `0` 且 `devices: []` | 空态「未发现可用输入设备 / No input devices found」+ 重试动作（**不是**错误页） |
 | 退出 `4 device_not_found` | 自动重读 + HUD「设备已断开，列表已刷新」 |
 | 退出 `4 switch_failed` | 重读 + HUD「切换输入失败」 |
 | 超时 | 错误页「读取设备超时」+ 重试 |
@@ -157,12 +162,12 @@ raycast/
 
 **新鲜度纪律（硬约束）**
 - 禁用 `useCachedPromise` / `useExec` / `useCachedState` / `Cache`；用 `usePromise`（无 `initialData`）或 `useState` + `useEffect`，挂载即调 helper。
-- 加载中保持 `List.isLoading`；**仅「非加载且 0 设备」才渲染空态**（防 `EmptyView` 闪烁）。
+- 加载中保持 `List.isLoading`；**空态由 `lib/presentation.ts` 的 `emptyStateFor` 一处判定**（`loading` 与「有条目可显示」都返回 `null`，所以不会闪 `EmptyView`），组件里只写一行 `{empty && <List.EmptyView {...empty} />}`。该函数对 `state.kind` 做穷尽 `switch`（没有 `default`），新增状态时漏分支直接编译失败。
 - `⌘R` 无条件重新执行 helper。
 
 **两个真机坑（必须保留现有修法）**
 
-1. **查询词继承**：Raycast 会把根搜索的查询注入命令搜索框，把设备列表过滤成 `No Results`（用户最自然的用法直接不可用）。受控 `searchText=""` 与 `undefined` 初值都盖不住。**唯一有效做法**：记录 `mountedAt`，丢弃挂载后 400 ms 内的 `onSearchTextChange` 推送，之后的用户输入正常生效。
+1. **查询词继承**：Raycast 会把根搜索的查询注入命令搜索框，把设备列表过滤成 `No Results`（用户最自然的用法直接不可用）。受控 `searchText=""` 与 `undefined` 初值都盖不住。**唯一有效做法**：记录 `mountedAt`，丢弃挂载后 400 ms 内的 `onSearchTextChange` 推送，之后的用户输入正常生效。判据抽在 `lib/searchText.ts`（`ROOT_SEARCH_GRACE_MS` + `shouldDropSearchText`），边界由 `searchText.test.ts` 锁住。
 2. **语言判定**：`Intl.DateTimeFormat().resolvedOptions().locale` 在本机中文系统报 `en-CN-…`（基础语言 `en`），不可用。**必须**读 `defaults read -g AppleLanguages` 首项（本机 `zh-Hans-CN`）；`zh*` → 中文，否则英文。
 
 **manifest 元数据静态英文**（Raycast 无 per-locale，Store 按英文审）；双语只落在自有 UI 文案上。
@@ -225,7 +230,8 @@ brew install kingxuchen/tap/voiceinput
 
 **TypeScript（插件侧）**
 - `vitest` + `vi.mock`/alias 桩 `@raycast/api`：解析器（形状/`protocol`/错误码映射）、i18n（`zh*` vs 其他）、`resolveCliPath` 探测顺序。
-- 不测 React 渲染细节；界面行为由真机手验覆盖。
+- 界面该显示什么，全部在 `lib/presentation.ts` 用纯函数覆盖：六种状态各自的图标/标题/动作顺序，重点是三组曾经分不开的情况——「HAL 答没有设备」vs「读不到设备」vs「搜不到」；两种「版本过旧」方向（升级 App / 更新扩展）文案与动作都不同。`lib/searchText.ts` 覆盖丢弃窗口的边界（0 ms、399 ms 丢，400 ms 收）与时钟回拨。
+- 不测 React 渲染细节；剩余界面行为由真机手验覆盖。
 
 **真机手验清单（缺一不判通过）**
 - [ ] 列表与 `voiceinput-cli list` 逐条一致，顺序一致，8 台设备单屏可读
@@ -259,4 +265,4 @@ brew install kingxuchen/tap/voiceinput
 | ad-hoc 签名 + 脚本清隔离 | 用户信任成本；未来 macOS 收紧本地执行 | 阶段二切 Developer ID 公证，扩展只换命令文本 |
 | `protocol` 演进 | 旧 App + 新插件 | 三态处理已定（缺 CLI / App 太旧 / 插件太旧） |
 | 无 CI | 发布靠手工清单 | `release.sh` 打印可复制命令；发布检查清单进 README |
-| 查询词继承是 Raycast 平台行为 | 若未来平台改行为，当前修法可能失效 | 手验清单里保留该条；修法集中在 `handleSearchTextChange` 一处 |
+| 查询词继承是 Raycast 平台行为 | 若未来平台改行为，当前修法可能失效 | 手验清单里保留该条；修法集中在 `lib/searchText.ts` + `handleSearchTextChange` 两处（判据与接线分开），并有单测锁边界 |

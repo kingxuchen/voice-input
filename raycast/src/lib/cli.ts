@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { getPreferenceValues } from "@raycast/api";
 
 import {
+  ERROR_CODES,
   PROTOCOL_VERSION,
   type AudioDevice,
   type CliResult,
@@ -51,23 +52,11 @@ function readErrorCode(value: object): ErrorCode | null {
   if (!("code" in value.error) || typeof value.error.code !== "string")
     return null;
   const code = value.error.code;
-  const known: ErrorCode[] = [
-    "bad_usage",
-    "hal_error",
-    "device_not_found",
-    "switch_failed",
-  ];
-  return known.find((candidate) => candidate === code) ?? null;
+  return ERROR_CODES.find((candidate) => candidate === code) ?? null;
 }
 
-/** 纯解析函数：导出给测试用，生产路径同样走它。 */
-export function parseDeviceListForTest(
-  stdout: string,
-): CliResult<DeviceListResponse> {
-  return parseDeviceList(stdout);
-}
-
-function parseDeviceList(stdout: string): CliResult<DeviceListResponse> {
+/** 纯解析函数：生产路径与测试都走它，不再套一层仅给测试用的同义函数。 */
+export function parseDeviceList(stdout: string): CliResult<DeviceListResponse> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);
@@ -99,7 +88,7 @@ function parseDeviceList(stdout: string): CliResult<DeviceListResponse> {
   }
   const errorCode = readErrorCode(parsed);
   if (errorCode) {
-    return { kind: "failed", code: errorCode, detail: errorCode };
+    return { kind: "failed", code: errorCode };
   }
   const list = toDeviceList(parsed);
   if (!list) {
@@ -201,28 +190,31 @@ async function call(
   return run(path, args);
 }
 
-export async function listDevices(
+/**
+ * 「跑一次 → 映射」的唯一实现：有 stdout 就按契约解析，没跑起来（missing / timeout / 进程层失败）
+ * 就映射成对应的结果。`list` 与 `set-default` 只差参数，不该各写一遍。
+ */
+async function invoke(
+  args: string[],
   cliPath?: string,
 ): Promise<CliResult<DeviceListResponse>> {
-  const outcome = await call(cliPath, ["list"]);
-  if ("kind" in outcome)
-    return outcome.kind === "failed"
-      ? { kind: "failed", code: "unknown", detail: outcome.detail }
-      : { kind: outcome.kind };
+  const outcome = await call(cliPath, args);
+  if ("kind" in outcome) {
+    if (outcome.kind !== "failed") return { kind: outcome.kind };
+    // 进程层失败（拉不起来、无退出码）没有契约错误码可映射；原因进日志，别静默丢掉。
+    console.error(`voiceinput-cli ${args.join(" ")}: ${outcome.detail}`);
+    return { kind: "failed", code: "unknown" };
+  }
   return parseDeviceList(outcome.stdout);
 }
 
+export function listDevices(cliPath?: string) {
+  return invoke(["list"], cliPath);
+}
+
 /** 切换结果就是切换后回读的完整列表（契约 0017）。 */
-export async function setDefault(
-  id: number,
-  cliPath?: string,
-): Promise<CliResult<DeviceListResponse>> {
-  const outcome = await call(cliPath, ["set-default", String(id)]);
-  if ("kind" in outcome)
-    return outcome.kind === "failed"
-      ? { kind: "failed", code: "unknown", detail: outcome.detail }
-      : { kind: outcome.kind };
-  return parseDeviceList(outcome.stdout);
+export function setDefault(id: number, cliPath?: string) {
+  return invoke(["set-default", String(id)], cliPath);
 }
 
 export function preferenceCliPath(): string | undefined {

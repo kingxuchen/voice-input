@@ -59,7 +59,6 @@ describe("listDevices 的错误面", () => {
     expect(await listDevices(path)).toEqual({
       kind: "failed",
       code: "hal_error",
-      detail: "hal_error",
     });
   });
 
@@ -70,7 +69,6 @@ describe("listDevices 的错误面", () => {
     expect(await listDevices(path)).toEqual({
       kind: "failed",
       code: "bad_usage",
-      detail: "bad_usage",
     });
   });
 });
@@ -100,7 +98,6 @@ describe("setDefault 的错误面", () => {
     expect(await setDefault(93, path)).toEqual({
       kind: "failed",
       code: "device_not_found",
-      detail: "device_not_found",
     });
   });
 
@@ -111,7 +108,6 @@ describe("setDefault 的错误面", () => {
     expect(await setDefault(93, path)).toEqual({
       kind: "failed",
       code: "switch_failed",
-      detail: "switch_failed",
     });
   });
 });
