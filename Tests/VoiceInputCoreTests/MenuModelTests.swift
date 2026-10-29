@@ -113,6 +113,5 @@ struct MenuModelTests {
         let items = MenuModel.deviceItems(devices: devices, defaultDeviceID: 2)
 
         #expect(items.map(\.title) == ["    Mic", "✓  Mic 2"])
-        #expect(items.map(\.isDefault) == [false, true])
     }
 }

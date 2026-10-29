@@ -8,8 +8,6 @@ public struct MenuItem: Identifiable, Equatable, Sendable {
         self.id = id
         self.title = title
     }
-
-    public var isDefault: Bool { title.hasPrefix(MenuModel.defaultPrefix) }
 }
 
 public enum MenuModel {

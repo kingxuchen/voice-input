@@ -128,8 +128,11 @@ struct AudioDeviceManagerListenerTests {
 
         #expect(provider.setDefaultCalls == [93])
         #expect(manager.state == standardState(defaultID: 115))
-        #expect(manager.menuItems.first(where: { $0.id == 115 })?.isDefault == true)
-        #expect(manager.menuItems.first(where: { $0.id == 177 })?.isDefault == false)
+        #expect(manager.menuItems.map(\.title) == [
+            "    vRemoteDr 2ch",
+            "    MacBook Pro麦克风",
+            "✓  BlackHole 2ch",
+        ])
     }
 
     @Test("防抖窗口内的切换不被过期刷新覆盖")
@@ -143,6 +146,10 @@ struct AudioDeviceManagerListenerTests {
         try await Task.sleep(for: .milliseconds(700))
 
         #expect(manager.state == standardState(defaultID: 93))
-        #expect(manager.menuItems.first(where: { $0.id == 93 })?.isDefault == true)
+        #expect(manager.menuItems.map(\.title) == [
+            "    vRemoteDr 2ch",
+            "✓  MacBook Pro麦克风",
+            "    BlackHole 2ch",
+        ])
     }
 }
