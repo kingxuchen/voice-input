@@ -27,21 +27,29 @@ public final class CoreAudioDeviceProvider: AudioDeviceProviding {
 
     public init() {}
 
-    public func inputDevices() -> [AudioDevice] {
+    public func inputDevices() throws(HALReadFailure) -> [AudioDevice] {
         var size: UInt32 = 0
-        let status = AudioObjectGetPropertyDataSize(
+        let sizeStatus = AudioObjectGetPropertyDataSize(
             AudioObjectID(kAudioObjectSystemObject), &devicesAddress, 0, nil, &size
         )
-        guard status == noErr, size > 0 else { return [] }
+        guard sizeStatus == noErr else {
+            throw HALReadFailure(selector: devicesAddress.mSelector, status: sizeStatus)
+        }
+        // size == 0 且 noErr 是 HAL 的正常回答：这台机器没有设备，返回空列表而不是报错。
+        guard size > 0 else { return [] }
 
         let count = Int(size) / MemoryLayout<AudioDeviceID>.size
         var deviceIDs = [AudioDeviceID](repeating: 0, count: count)
         let getStatus = AudioObjectGetPropertyData(
             AudioObjectID(kAudioObjectSystemObject), &devicesAddress, 0, nil, &size, &deviceIDs
         )
-        guard getStatus == noErr else { return [] }
+        guard getStatus == noErr else {
+            throw HALReadFailure(selector: devicesAddress.mSelector, status: getStatus)
+        }
 
         return deviceIDs.compactMap { deviceID in
+            // 单台设备的流属性读失败按「没有输入流」跳过：不能让一台读不到的设备
+            // 把整张列表变成读取失败——那是逐设备的降级，不是整体失败。
             guard hasInputStreams(deviceID) else { return nil }
             // 读名失败也保留设备：菜单要列全所有输入设备，不能让它静默消失。
             let name = readString(deviceID, selector: kAudioDevicePropertyDeviceNameCFString) ?? "未知设备"
@@ -49,13 +57,17 @@ public final class CoreAudioDeviceProvider: AudioDeviceProviding {
         }
     }
 
-    public func defaultInputDeviceID() -> AudioDeviceID? {
-        var deviceID: AudioDeviceID = 0
+    public func defaultInputDeviceID() throws(HALReadFailure) -> AudioDeviceID? {
+        var deviceID: AudioDeviceID = kAudioObjectUnknown
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
         let status = AudioObjectGetPropertyData(
             AudioObjectID(kAudioObjectSystemObject), &defaultInputAddress, 0, nil, &size, &deviceID
         )
-        return status == noErr ? deviceID : nil
+        guard status == noErr else {
+            throw HALReadFailure(selector: defaultInputAddress.mSelector, status: status)
+        }
+        // HAL 答「没有默认输入」时回 kAudioObjectUnknown：这是一个答案，不是失败。
+        return deviceID == kAudioObjectUnknown ? nil : deviceID
     }
 
     public func setDefaultInputDevice(id: AudioDeviceID) -> OSStatus {

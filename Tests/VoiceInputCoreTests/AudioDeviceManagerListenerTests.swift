@@ -7,6 +7,17 @@ import CoreAudio
 struct AudioDeviceManagerListenerTests {
     private func makeProvider() -> FakeAudioDeviceProvider { makeStandardProvider() }
 
+    private func standardState(defaultID: AudioDeviceID?) -> DeviceListState {
+        .devices(
+            [
+                AudioDevice(id: 177, name: "vRemoteDr 2ch"),
+                AudioDevice(id: 93, name: "MacBook Pro麦克风"),
+                AudioDevice(id: 115, name: "BlackHole 2ch"),
+            ],
+            defaultID: defaultID
+        )
+    }
+
     @Test("监听事件触发后刷新设备列表")
     func listenerRefreshesDeviceList() async throws {
         let provider = makeProvider()
@@ -15,7 +26,21 @@ struct AudioDeviceManagerListenerTests {
         provider.devices = [AudioDevice(id: 115, name: "BlackHole 2ch")]
         provider.fireChanged()
 
-        #expect(await eventually { manager.devices.map(\.name) == ["BlackHole 2ch"] })
+        #expect(await eventually {
+            manager.state == .devices([AudioDevice(id: 115, name: "BlackHole 2ch")], defaultID: 177)
+        })
+    }
+
+    @Test("监听触发的刷新读失败时，状态是 unreadable 而不是被抹成空列表")
+    func listenerRefreshFailureIsUnreadable() async throws {
+        let provider = makeProvider()
+        let manager = AudioDeviceManager(provider: provider)
+
+        // 设备变动事件到达时 HAL 恰好读不到：界面必须说「无法读取」，不能显示成「未发现设备」。
+        provider.devicesFailure = sampleReadFailure
+        provider.fireChanged()
+
+        #expect(await eventually { manager.state == .unreadable(sampleReadFailure) })
     }
 
     @Test("防抖窗口内不刷新，窗口过后才刷新")
@@ -57,7 +82,7 @@ struct AudioDeviceManagerListenerTests {
         provider.defaultID = 93
         provider.fireChanged()
 
-        #expect(await eventually { manager.defaultDeviceID == 93 })
+        #expect(await eventually { manager.state == standardState(defaultID: 93) })
         #expect(manager.menuItems.map(\.title) == [
             "    vRemoteDr 2ch",
             "✓  MacBook Pro麦克风",
@@ -77,7 +102,15 @@ struct AudioDeviceManagerListenerTests {
         provider.defaultID = 93
         provider.fireChanged()
 
-        #expect(await eventually { manager.defaultDeviceID == 93 })
+        #expect(await eventually {
+            manager.state == .devices(
+                [
+                    AudioDevice(id: 93, name: "MacBook Pro麦克风"),
+                    AudioDevice(id: 115, name: "BlackHole 2ch"),
+                ],
+                defaultID: 93
+            )
+        })
         #expect(manager.menuItems.map(\.title) == [
             "✓  MacBook Pro麦克风",
             "    BlackHole 2ch",
@@ -94,7 +127,7 @@ struct AudioDeviceManagerListenerTests {
         manager.select(deviceID: 93)
 
         #expect(provider.setDefaultCalls == [93])
-        #expect(manager.defaultDeviceID == 115)
+        #expect(manager.state == standardState(defaultID: 115))
         #expect(manager.menuItems.first(where: { $0.id == 115 })?.isDefault == true)
         #expect(manager.menuItems.first(where: { $0.id == 177 })?.isDefault == false)
     }
@@ -109,7 +142,7 @@ struct AudioDeviceManagerListenerTests {
 
         try await Task.sleep(for: .milliseconds(700))
 
-        #expect(manager.defaultDeviceID == 93)
+        #expect(manager.state == standardState(defaultID: 93))
         #expect(manager.menuItems.first(where: { $0.id == 93 })?.isDefault == true)
     }
 }

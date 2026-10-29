@@ -37,8 +37,9 @@ struct MenuOpenRefreshTests {
         provider.defaultID = 115
         center.post(name: NSMenu.didBeginTrackingNotification, object: NSMenu())
 
-        #expect(await eventually { state.manager.devices.map(\.name) == ["BlackHole 2ch"] })
-        #expect(state.manager.defaultDeviceID == 115)
+        #expect(await eventually {
+            state.manager.state == .devices([AudioDevice(id: 115, name: "BlackHole 2ch")], defaultID: 115)
+        })
         #expect(provider.deviceReadCount > readsAfterInit)
     }
 

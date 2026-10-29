@@ -18,16 +18,7 @@ public struct AudioDeviceMenuView: View {
 
     @ViewBuilder
     private var content: some View {
-        if manager.devices.isEmpty {
-            Text("未发现可用输入设备")
-                .foregroundStyle(.secondary)
-        } else {
-            ForEach(manager.menuItems) { item in
-                Button(item.title) {
-                    manager.select(deviceID: item.id)
-                }
-            }
-        }
+        deviceSection
 
         Divider()
 
@@ -49,6 +40,28 @@ public struct AudioDeviceMenuView: View {
 
         Button("退出 VoiceInput") {
             NSApplication.shared.terminate(nil)
+        }
+    }
+
+    /// 三个事实分开说：有设备就列；读到了但一台都没有，说「未发现」；
+    /// 读不到就说「无法读取」——不能再用「没有设备」给 HAL 的故障圆场。
+    @ViewBuilder
+    private var deviceSection: some View {
+        switch manager.state {
+        case let .devices(devices, _) where devices.isEmpty:
+            Text("未发现可用输入设备")
+                .foregroundStyle(.secondary)
+        case .devices:
+            ForEach(manager.menuItems) { item in
+                Button(item.title) {
+                    manager.select(deviceID: item.id)
+                }
+            }
+        case let .unreadable(failure):
+            // 菜单不是诊断通道：细节（HAL 属性四字符码 + OSStatus）只作提示，正文说清「读不到」即可。
+            Text("无法读取音频设备")
+                .foregroundStyle(.secondary)
+                .help("\(failure.selectorCode) OSStatus \(failure.status)")
         }
     }
 }
