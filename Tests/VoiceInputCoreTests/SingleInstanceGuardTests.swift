@@ -76,7 +76,8 @@ struct SingleInstanceGuardTests {
         let url = SingleInstanceGuard.defaultLockFileURL
 
         #expect(url.lastPathComponent == "instance.lock")
-        #expect(url.deletingLastPathComponent().lastPathComponent == "com.fanbingbing.voiceinput")
+        // 期望值直接取 AppIdentity：锁目录必须跟着应用身份走，而不是写死一个字符串。
+        #expect(url.deletingLastPathComponent().lastPathComponent == AppIdentity.bundleIdentifier)
         #expect(
             url.deletingLastPathComponent().path.hasPrefix(
                 FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].path
