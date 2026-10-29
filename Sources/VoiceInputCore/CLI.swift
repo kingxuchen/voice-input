@@ -137,7 +137,7 @@ struct CLIRunner {
     private func readDevices() throws(HALReadFailure) -> [CLIDevice] {
         let raw = try provider.inputDevices()
         let defaultID = try provider.defaultInputDeviceID()
-        let names = MenuModel.displayNames(for: raw)
+        let names = DeviceNaming.displayNames(for: raw)
         return raw.enumerated().map { index, device in
             CLIDevice(
                 id: device.id,
