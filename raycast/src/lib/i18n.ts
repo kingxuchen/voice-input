@@ -4,6 +4,7 @@ export type Strings = {
   emptyTitle: string;
   emptyDescription: string;
   copyInstallCommand: string;
+  copyBrewCommand: string;
   openInstallationGuide: string;
   retry: string;
   openPreferences: string;
@@ -11,6 +12,7 @@ export type Strings = {
   deviceDisconnected: string;
   switchFailed: string;
   cannotReadDevices: string;
+  noDevices: string;
   timedOut: string;
   outdated: string;
   pluginOutdated: string;
@@ -30,6 +32,7 @@ const en: Strings = {
   emptyDescription:
     "Install the VoiceInput companion app to list and switch audio inputs.",
   copyInstallCommand: "Copy Install Command",
+  copyBrewCommand: "Copy Homebrew Command",
   openInstallationGuide: "Open Installation Guide",
   retry: "Retry",
   openPreferences: "Open Extension Preferences",
@@ -37,6 +40,7 @@ const en: Strings = {
   deviceDisconnected: "Device disconnected — list refreshed",
   switchFailed: "Could not switch input",
   cannotReadDevices: "Cannot read audio devices",
+  noDevices: "No input devices found",
   timedOut: "Reading devices timed out",
   outdated: "VoiceInput is out of date",
   pluginOutdated: "This extension is out of date",
@@ -55,6 +59,7 @@ const zh: Strings = {
   emptyTitle: "未安装 VoiceInput",
   emptyDescription: "安装 VoiceInput 伴侣应用后，即可列出并切换音频输入设备。",
   copyInstallCommand: "复制安装命令",
+  copyBrewCommand: "复制 Homebrew 命令",
   openInstallationGuide: "打开安装指南",
   retry: "重试",
   openPreferences: "打开扩展设置",
@@ -62,6 +67,7 @@ const zh: Strings = {
   deviceDisconnected: "设备已断开，列表已刷新",
   switchFailed: "切换输入失败",
   cannotReadDevices: "无法读取音频设备",
+  noDevices: "未发现可用输入设备",
   timedOut: "读取设备超时",
   outdated: "VoiceInput 版本过旧",
   pluginOutdated: "插件版本过旧",
