@@ -1,4 +1,5 @@
 import CoreAudio
+import OSLog
 import Observation
 
 /// 菜单层的设备状态：一次 HAL 快照，要么整体读到，要么整体读不到。
@@ -30,8 +31,13 @@ public final class AudioDeviceManager {
         self.debounceInterval = debounceInterval
         self.state = Self.snapshot(from: provider)
 
-        _ = provider.addListener { [weak self] in
+        let subscribed = provider.addListener { [weak self] in
             Task { @MainActor in self?.scheduleRefresh() }
+        }
+        if !subscribed {
+            // 订阅失败不是致命错误：菜单每次打开仍会重读。但也别假装没事——
+            // 用户插拔设备后菜单会停在旧列表，控制台得能查到原因。
+            Self.logger.error("订阅设备变更通知失败：菜单不会随设备插拔自动刷新，只在打开时重读")
         }
     }
 
@@ -53,10 +59,18 @@ public final class AudioDeviceManager {
         state = Self.snapshot(from: provider)
     }
 
-    /// 切换默认输入。写入结果按 0004 #3 静默处理：不做错误提示，
+    /// 切换默认输入。写入结果按 0004 #3 静默处理：不弹错误提示，
     /// 勾选永远对齐系统回读出来的真实默认（系统可能拒绝、回落或另有变化）。
+    ///
+    /// 「静默」指不对用户报错，不是把 OSStatus 扔掉：写失败后紧跟的这次回读会把勾选
+    /// 放回系统真实默认，用户看到的是真相而不是一个撒谎的勾；失败原因只进日志。
     public func select(deviceID: AudioDeviceID) {
-        _ = provider.setDefaultInputDevice(id: deviceID)
+        let status = provider.setDefaultInputDevice(id: deviceID)
+        if status != noErr {
+            Self.logger.error(
+                "切换默认输入失败 device \(deviceID)（OSStatus \(status)），重新回读系统状态"
+            )
+        }
         state = Self.snapshot(from: provider)
     }
 
@@ -81,4 +95,6 @@ public final class AudioDeviceManager {
             return .unreadable(error)
         }
     }
+
+    private static let logger = AppIdentity.logger(category: "AudioDevice")
 }

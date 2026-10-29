@@ -17,6 +17,8 @@ final class FakeAudioDeviceProvider: AudioDeviceProviding {
     /// 模拟「写入成功，但紧接着 HAL 读不到」：置上后，写入完成即让后续读取开始抛错。
     var readFailureAfterWrite: HALReadFailure?
     private(set) var setDefaultCalls: [AudioDeviceID] = []
+    /// 模拟「订阅设备变更通知失败」。
+    var listenerRegistrationFails = false
     private(set) var deviceReadCount = 0
     private var handler: (() -> Void)?
 
@@ -42,6 +44,7 @@ final class FakeAudioDeviceProvider: AudioDeviceProviding {
     }
 
     func addListener(_ handler: @escaping () -> Void) -> Bool {
+        guard !listenerRegistrationFails else { return false }
         self.handler = handler
         return true
     }

@@ -62,7 +62,11 @@ struct AudioDeviceManagerTests {
 
         #expect(provider.setDefaultCalls == [93])
         #expect(manager.state == standardState(defaultID: 177))
-        #expect(manager.menuItems.first?.isDefault == true)
+        #expect(manager.menuItems.map(\.title) == [
+            "✓  vRemoteDr 2ch",
+            "    MacBook Pro麦克风",
+            "    BlackHole 2ch",
+        ])
     }
 
     @Test("刷新后重新拉取设备列表与默认设备")
@@ -122,6 +126,17 @@ struct AudioDeviceManagerTests {
 
         #expect(provider.setDefaultCalls == [93])
         #expect(manager.state == .unreadable(sampleReadFailure))
+    }
+
+    @Test("订阅变更通知失败不影响首次加载：列表照常可用，只是不再自动刷新")
+    func listenerRegistrationFailureStillLoadsDevices() {
+        let provider = makeProvider()
+        provider.listenerRegistrationFails = true
+
+        let manager = AudioDeviceManager(provider: provider)
+
+        #expect(manager.state == standardState(defaultID: 177))
+        #expect(manager.menuItems.count == 3)
     }
 
     @Test("一台输入设备都没有是正常快照：devices 为空但状态不是 unreadable")
